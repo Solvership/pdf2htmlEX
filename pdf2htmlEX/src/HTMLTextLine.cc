@@ -7,11 +7,14 @@
  */
 
 #include <cmath>
+#include <sstream>
 #include <algorithm>
 
 #include "HTMLTextLine.h"
 
 #include "util/encoding.h"
+#include "util/unicode.h"
+#include "util/math.h"
 #include "util/css_const.h"
 
 namespace pdf2htmlEX {
@@ -83,6 +86,11 @@ void HTMLTextLine::append_state(const HTMLTextState & text_state)
     last_state.font_size *= last_state.font_info->font_size_scale;
 }
 
+static inline int utf16_units(unsigned int u)
+{
+    return (u < 0x10000) ? 1 : ((u <= 0x10ffff) ? 2 : 0);
+}
+
 void HTMLTextLine::dump_char(std::ostream & out, int pos)
 {
     int c = text[pos];
@@ -90,19 +98,75 @@ void HTMLTextLine::dump_char(std::ostream & out, int pos)
     {
         Unicode u = c;
         writeUnicodes(out, &u, 1);
+        text_units += utf16_units(u);
     }
     else if (c < 0)
     {
         auto dt = decomposed_text[- c - 1];
         writeUnicodes(out, &dt.front(), dt.size());
+        for (auto u : dt)
+            text_units += utf16_units(u);
     }
+}
+
+void HTMLTextLine::close_range(void)
+{
+    if (range_group >= 0 && range_end > range_start)
+    {
+        if (!ranges.empty())
+            ranges += ' ';
+        ranges += (*cur_tags->group_keys)[range_group] + "@" + std::to_string(range_start) + "-" + std::to_string(range_end);
+    }
+    range_group = -1;
+}
+
+int HTMLTextLine::group_at(int pos) const
+{
+    if (!cur_tags || line_state.first_char_index < 0)
+        return -1;
+    return cur_tags->group_of(line_state.first_char_index + pos);
 }
 
 void HTMLTextLine::dump_chars(ostream & out, int begin, int len)
 {
     static const Color transparent(0, 0, 0, true);
 
-    if (line_state.first_char_index < 0)
+    // per glyph semantic groups are only needed if the line mixes several groups
+    const bool group_spans = cur_tags && !line_group_resolved && !range_mode;
+
+    if (range_mode)
+    {
+        // compute the ranges, the output itself is not changed at all
+        long units = text_units;
+        for (int i = 0; i < len; i++)
+        {
+            int c = text[begin + i];
+            if (c == 0)
+                continue;
+            int g = group_at(begin + i);
+            if (g != range_group)
+            {
+                close_range();
+                range_group = g;
+                range_start = units;
+            }
+            if (c > 0)
+                units += utf16_units(c);
+            else
+                for (auto u : decomposed_text[- c - 1])
+                    units += utf16_units(u);
+            range_end = units;
+        }
+    }
+    dump_chars_plain(out, begin, len);
+}
+
+void HTMLTextLine::dump_chars_plain(ostream & out, int begin, int len)
+{
+    static const Color transparent(0, 0, 0, true);
+    const bool group_spans = cur_tags && !line_group_resolved && !range_mode;
+
+    if (line_state.first_char_index < 0 && !group_spans)
     {
         for (int i = 0; i < len; i++)
             dump_char(out, begin + i);
@@ -112,7 +176,30 @@ void HTMLTextLine::dump_chars(ostream & out, int begin, int len)
     bool invisible_group_open = false;
     for(int i = 0; i < len; i++)
     {
-        if (!line_state.is_char_covered(line_state.first_char_index + begin + i)) //visible
+        if (group_spans && text[begin + i] != 0)
+        {
+            int g = group_at(begin + i);
+            if (g != open_group_span)
+            {
+                if (invisible_group_open)
+                {
+                    invisible_group_open = false;
+                    out << "</span>";
+                }
+                close_group_span(out);
+                if (g >= 0)
+                {
+                    // position:static: unlike the other spans of a line (position:relative) this one must
+                    // not influence the painting at all (sub-pixel snapping of transformed text)
+                    out << "<span" << (*cur_tags->group_attrs)[g] << " style=\"position:static\">";
+                    open_group_span = g;
+                }
+            }
+        }
+
+        bool covered = (line_state.first_char_index >= 0)
+            && line_state.is_char_covered(line_state.first_char_index + begin + i);
+        if (!covered) //visible
         {
             if (invisible_group_open)
             {
@@ -135,10 +222,104 @@ void HTMLTextLine::dump_chars(ostream & out, int begin, int len)
     }
     if (invisible_group_open)
         out << "</span>";
+    // the group span stays open: consecutive text pieces of the same group are not split
 }
 
-void HTMLTextLine::dump_text(ostream & out)
+void HTMLTextLine::close_group_span(ostream & out)
 {
+    if (open_group_span >= 0)
+    {
+        out << "</span>";
+        open_group_span = -1;
+    }
+}
+
+static void append_utf8(std::string & out, unsigned int cp)
+{
+    if (cp < 0x80)
+        out += (char)cp;
+    else if (cp < 0x800)
+    {
+        out += (char)(0xC0 | (cp >> 6));
+        out += (char)(0x80 | (cp & 0x3F));
+    }
+    else if (cp < 0x10000)
+    {
+        out += (char)(0xE0 | (cp >> 12));
+        out += (char)(0x80 | ((cp >> 6) & 0x3F));
+        out += (char)(0x80 | (cp & 0x3F));
+    }
+    else if (cp < 0x110000)
+    {
+        out += (char)(0xF0 | (cp >> 18));
+        out += (char)(0x80 | ((cp >> 12) & 0x3F));
+        out += (char)(0x80 | ((cp >> 6) & 0x3F));
+        out += (char)(0x80 | (cp & 0x3F));
+    }
+}
+
+void HTMLTextLine::collect_chars(std::vector<LineChar> & out) const
+{
+    if (line_state.first_char_index < 0)
+        return;
+
+    std::vector<bool> space_before(text.size() + 1, false);
+    for (const auto & off : offsets)
+    {
+        if (off.width <= 0)
+            continue;
+        // state in effect at this position
+        const State * st = nullptr;
+        for (const auto & s : states)
+        {
+            if (s.start_idx <= off.start_idx)
+                st = &s;
+            else
+                break;
+        }
+        if (!st && !states.empty())
+            st = &states.front();
+        double threshold = st ? st->em_size() * param.space_threshold : 0;
+        if (off.width < threshold - EPS)
+            continue;
+        // the gap is in front of the next real glyph
+        size_t idx = off.start_idx;
+        while (idx < text.size() && text[idx] == 0)
+            ++idx;
+        space_before[idx] = true;
+    }
+
+    for (size_t i = 0; i < text.size(); ++i)
+    {
+        LineChar lc;
+        lc.char_index = line_state.first_char_index + (int)i;
+        lc.space_before = space_before[i];
+        int c = text[i];
+        if (c > 0)
+        {
+            if (!is_illegal_unicode(c))
+                append_utf8(lc.text, c);
+        }
+        else if (c < 0)
+        {
+            for (auto u : decomposed_text[- c - 1])
+                if (!is_illegal_unicode(u))
+                    append_utf8(lc.text, u);
+        }
+        out.push_back(std::move(lc));
+    }
+}
+
+void HTMLTextLine::dump_text(ostream & real_out, const SemanticTags * tags)
+{
+    cur_tags = (tags && tags->char_group && tags->group_attrs) ? tags : nullptr;
+    line_group_resolved = false;
+    open_group_span = -1;
+    range_mode = false;
+    text_units = 0;
+    range_group = -1;
+    range_start = range_end = 0;
+    ranges.clear();
     /*
      * Each Line is an independent absolute positioned block
      * so even we have a few states or offsets, we may omit them
@@ -152,10 +333,47 @@ void HTMLTextLine::dump_text(ostream & out)
         return;
     }
 
+    // semantic annotation: if all glyphs belong to the same group, annotate the whole line
+    std::string line_attrs;
+    if (cur_tags)
+    {
+        int line_group = -2;
+        bool mixed = false;
+        for (size_t i = 0; i < text.size() && !mixed; ++i)
+        {
+            int c = text[i];
+            if (c == 0)
+                continue;
+            int g = group_at(i);
+            if (g < 0 && (c == ' ' || c == 0xa0))
+                continue; // ungrouped white space does not matter
+            if (line_group == -2)
+                line_group = g;
+            else if (line_group != g)
+                mixed = true;
+        }
+        if (!mixed)
+        {
+            line_group_resolved = true;
+            if (line_group >= 0)
+                line_attrs = (*cur_tags->group_attrs)[line_group];
+        }
+        else if (!param.semantic_spans && cur_tags->group_keys)
+        {
+            range_mode = true;
+        }
+    }
+
+    // in range mode the line is buffered: data-sem is only known at the end
+    std::ostringstream buffer;
+    if (range_mode)
+        buffer.copyfmt(real_out);
+    ostream & out = range_mode ? buffer : real_out;
+
     // Start Output
     {
         // open <div> for the current text line
-        out << "<div class=\"" << CSS::LINE_CN
+        out << "<div" << line_attrs << " class=\"" << CSS::LINE_CN
             << " " << CSS::TRANSFORM_MATRIX_CN << all_manager.transform_matrix.install(line_state.transform_matrix)
             << " " << CSS::LEFT_CN             << all_manager.left.install(line_state.x - clip_x1)
             << " " << CSS::HEIGHT_CN           << all_manager.height.install(ascent)
@@ -197,6 +415,7 @@ void HTMLTextLine::dump_text(ostream & out)
                 {
                     while(stack.back() != *iter)
                     {
+                        close_group_span(out);
                         stack.back()->end(out);
                         stack.pop_back();
                     }
@@ -216,6 +435,7 @@ void HTMLTextLine::dump_text(ostream & out)
             // 
             state_iter1->ids[State::VERTICAL_ALIGN_ID] = all_manager.vertical_align.install(state_iter1->vertical_align);
             // export the diff between *state_iter1 and stack.back()
+            close_group_span(out);
             state_iter1->begin(out, stack.back());
             stack.push_back(&*state_iter1);
         }
@@ -251,8 +471,10 @@ void HTMLTextLine::dump_text(ostream & out)
                         {
                             Unicode u = ' ';
 				// Sometimes we guess wrong whether we have a valid space character, so ensure it is always hidden
+                            close_group_span(out);
                             out << "<span class=\"" << CSS::WHITESPACE_CN << "\">";
                             writeUnicodes(out, &u, 1);
+                            ++text_units;
                             out << "</span>";
                             actual_offset = space_off;
                             done = true;
@@ -271,8 +493,12 @@ void HTMLTextLine::dump_text(ostream & out)
 
                             double threshold = state_iter1->em_size() * (param.space_threshold);
 
+                            close_group_span(out);
+                            bool space = target > (threshold - EPS);
                             out << "<span class=\"" << CSS::WHITESPACE_CN
-                                << ' ' << CSS::WHITESPACE_CN << wid << "\">" << (target > (threshold - EPS) ? " " : "") << "</span>";
+                                << ' ' << CSS::WHITESPACE_CN << wid << "\">" << (space ? " " : "") << "</span>";
+                            if (space)
+                                ++text_units;
                         }
                     }
                 }
@@ -293,6 +519,7 @@ void HTMLTextLine::dump_text(ostream & out)
         }
     }
 
+    close_group_span(out);
     // we have a nullptr in the bottom
     while(stack.back())
     {
@@ -301,6 +528,16 @@ void HTMLTextLine::dump_text(ostream & out)
     }
 
     out << "</div>";
+
+    if (range_mode)
+    {
+        close_range();
+        std::string html = buffer.str();
+        // html starts with "<div": insert the ranges right after it
+        if (!ranges.empty())
+            html.insert(4, " data-sem=\"" + ranges + "\"");
+        real_out << html;
+    }
 }
 
 void HTMLTextLine::clear(void)

@@ -7,6 +7,7 @@
 
 #include <ostream>
 #include <vector>
+#include <string>
 
 #include <CharTypes.h>
 
@@ -24,6 +25,34 @@ namespace pdf2htmlEX {
  *  - Shift
  *  - State change
  */
+/*
+ * Semantic annotation of the chars of a page (see Semantic/Semantic.h):
+ * char_group[page char index] is an index into group_attrs or -1,
+ * group_attrs are HTML attribute strings (starting with a space).
+ */
+struct SemanticTags
+{
+    const std::vector<int> * char_group = nullptr;
+    const std::vector<std::string> * group_attrs = nullptr;
+    const std::vector<std::string> * group_keys = nullptr;  // compact keys, for data-sem ranges
+    int group_of(int char_index) const
+    {
+        if (!char_group || char_index < 0 || char_index >= (int)char_group->size())
+            return -1;
+        return (*char_group)[char_index];
+    }
+};
+
+/*
+ * Text of a drawn glyph, for the semantic analysis.
+ */
+struct LineChar
+{
+    int char_index;     // page level char index
+    std::string text;   // UTF-8, empty for padding chars
+    bool space_before;  // a visible word gap is rendered before this glyph
+};
+
 class HTMLTextLine
 {
 public:
@@ -85,7 +114,11 @@ public:
     void append_padding_char() { text.push_back(0); }
     void append_offset(double width);
     void append_state(const HTMLTextState & text_state);
-    void dump_text(std::ostream & out);
+    void dump_text(std::ostream & out, const SemanticTags * tags = nullptr);
+
+    int get_first_char_index(void) const { return line_state.first_char_index; }
+    // collect the glyphs of the line with their text (needs first_char_index >= 0)
+    void collect_chars(std::vector<LineChar> & out) const;
 
     bool text_empty(void) const { return text.empty(); }
     void clear(void);
@@ -106,6 +139,20 @@ private:
      * begin/pos is the index in 'text'.
      */
     void dump_chars(std::ostream & out, int begin, int len);
+    void dump_chars_plain(std::ostream & out, int begin, int len);
+    // group of the char at position pos of this line (-1 if none)
+    int group_at(int pos) const;
+    const SemanticTags * cur_tags = nullptr;
+    bool line_group_resolved = false; // the whole line belongs to one group (or none)
+    int open_group_span = -1;          // group of the currently open semantic <span>
+    // range mode (lines mixing groups, without spans): UTF-16 offsets in the line's textContent
+    bool range_mode = false;
+    long text_units = 0;
+    int range_group = -1;
+    long range_start = 0, range_end = 0;
+    std::string ranges;
+    void close_range(void);
+    void close_group_span(std::ostream & out);
     void dump_char(std::ostream & out, int pos);
 
     const Param & param;

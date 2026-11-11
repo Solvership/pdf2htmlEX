@@ -510,7 +510,7 @@ void HTMLRenderer::prepare_text_line(GfxState * state)
         state->textTransformDelta(0, state->getRise(), &rise_x, &rise_y);
         state->transform(state->getCurX() + rise_x, state->getCurY() + rise_y, &cur_line_state.x, &cur_line_state.y);
 
-        if (param.correct_text_visibility)
+        if (param.correct_text_visibility || param.semantic_tables)
             cur_line_state.first_char_index = get_char_count();
 
         html_text_page.open_new_line(cur_line_state);

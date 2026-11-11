@@ -1,0 +1,42 @@
+% Fully ruled table whose cells wrap onto several lines, plus row/col spans.
+\documentclass[a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{multirow}
+\pagestyle{empty}
+\begin{document}
+Ugovor o isporuci -- prilog A
+
+\vspace{1em}
+\begin{tabular}{|p{2.5cm}|p{5cm}|p{2cm}|}
+\hline
+Šifra & Opis stavke & Iznos \\
+\hline
+A-001 & Isporuka električne energije za razdoblje od siječnja do ožujka & 1.250,00 \\
+\hline
+A-002 & Mrežarina & 310,50 \\
+\hline
+A-003 & Naknada za obnovljive izvore energije i poticanje učinkovitosti & 89,90 \\
+\hline
+\multicolumn{2}{|r|}{Ukupno} & 1.650,40 \\
+\hline
+\end{tabular}
+
+\vspace{2em}
+Druga tablica:
+
+\vspace{1em}
+\begin{tabular}{|l|l|l|}
+\hline
+\multirow{2}{*}{Grupa} & Stavka 1 & 10 \\
+\cline{2-3}
+ & Stavka 2 & 20 \\
+\hline
+Ostalo & Stavka 3 & 30 \\
+\hline
+\end{tabular}
+
+\vspace{2em}
+Tekst nakon tablice koji nije dio tablice i ne smije biti detektiran kao tablica.
+\end{document}

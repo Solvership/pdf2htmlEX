@@ -55,6 +55,11 @@ public:
      */
     const std::vector<bool> & get_chars_covered() { return chars_covered; }
 
+    /**
+     * Bounding boxes of the drawn chars: x0, y0, x1, y1 per char (page space).
+     */
+    const std::vector<double> & get_char_bboxes() const { return char_bboxes; }
+
 private:
     std::vector<bool> chars_covered;
     // x00, y00, x01, y01; x10, y10, x11, y11;...

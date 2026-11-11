@@ -1,0 +1,35 @@
+# Development image for building pdf2htmlEX from the LOCAL source tree.
+#
+# The image only contains toolchains and system libraries. Poppler, FontForge
+# and pdf2htmlEX itself are built inside the bind-mounted repository (into the
+# git-ignored `poppler/`, `fontforge/` and `pdf2htmlEX/build/` directories), so
+# rebuilding after a source change is incremental.
+#
+# Usage: see scripts/dev.sh
+
+FROM debian:bookworm
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates wget git pkg-config ruby autoconf libtool cmake make \
+        gcc g++ dpkg-dev gettext jq xz-utils \
+        libcairo2-dev libpng-dev libjpeg-dev libxml2-dev libopenjp2-7-dev \
+        libfontconfig1-dev libfreetype-dev libglib2.0-dev libpango1.0-dev \
+        libspiro-dev python3-dev libtiff-dev libgif-dev libboost-dev \
+        # test tooling
+        python3 python3-pil poppler-utils qpdf chromium fonts-dejavu \
+        fonts-liberation \
+        texlive-latex-base texlive-latex-recommended texlive-latex-extra \
+        texlive-fonts-recommended \
+        libreoffice-writer-nogui \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV HOME=/tmp/home
+RUN mkdir -p /tmp/home && chmod 777 /tmp/home
+
+WORKDIR /work
+
+# extra fonts for the test corpus
+RUN apt-get update && apt-get install -y --no-install-recommends lmodern \
+    && rm -rf /var/lib/apt/lists/*

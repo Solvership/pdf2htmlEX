@@ -1,0 +1,18 @@
+% Table with horizontal rules only (booktabs) and a wrapped cell.
+\documentclass[a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{booktabs}
+\pagestyle{empty}
+\begin{document}
+\begin{tabular}{lp{5cm}r}
+\toprule
+OMM & Naziv & Snaga (kW) \\
+\midrule
+1001 & Sunčana elektrana Dalmacija & 500 \\
+1002 & Vjetroelektrana s vrlo dugim nazivom koji se prelama u dva retka & 12000 \\
+1003 & Hidroelektrana & 800 \\
+\bottomrule
+\end{tabular}
+\end{document}

@@ -67,6 +67,15 @@ struct Param
     int tounicode;
     int optimize_text;
 
+    // semantic layer
+    int semantic_tables;
+    std::string table_detect;
+    std::string semantic_output;
+    int semantic_paragraphs;
+    int dehyphenate;
+    std::string cell_line_join;
+    int semantic_spans;
+
     // background image
     std::string bg_format;
     int svg_node_count_limit;

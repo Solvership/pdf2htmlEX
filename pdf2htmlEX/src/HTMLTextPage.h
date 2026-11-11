@@ -30,6 +30,10 @@ public:
     HTMLTextLine * get_cur_line(void) const { return cur_line; }
 
     void dump_text(std::ostream & out);
+
+    const std::vector<HTMLTextLine*> & get_lines(void) const { return text_lines; }
+    // semantic annotation used by dump_text (may be nullptr)
+    void set_semantic_tags(const SemanticTags * tags) { semantic_tags = tags; }
     void dump_css(std::ostream & out);
     void clear(void);
 
@@ -48,6 +52,7 @@ private:
     const Param & param;
     AllStateManager & all_manager;
     HTMLTextLine * cur_line;
+    const SemanticTags * semantic_tags = nullptr;
     double page_width, page_height;
 
     std::vector<HTMLTextLine*> text_lines;

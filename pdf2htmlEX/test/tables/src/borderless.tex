@@ -1,0 +1,23 @@
+% Table without any rules, followed by ordinary paragraph text.
+\documentclass[a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\pagestyle{empty}
+\begin{document}
+Ovo je običan odlomak teksta koji se proteže preko nekoliko redaka kako bi se
+provjerilo da grupiranje odlomaka radi ispravno i da se obični tekst ne
+prepoznaje kao tablica. Odlomak ima dovoljno riječi za tri retka teksta na
+stranici formata A4.
+
+\vspace{2em}
+\begin{tabular}{lll}
+Partner & Uloga & OIB \\
+HEP d.d. & Kupac & 28921383001 \\
+Solar d.o.o. & Proizvođač & 12345678901 \\
+Vjetar j.d.o.o. & Proizvođač & 98765432109 \\
+\end{tabular}
+
+\vspace{2em}
+Drugi odlomak. Kratak.
+\end{document}

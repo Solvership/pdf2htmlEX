@@ -117,6 +117,15 @@ void HTMLRenderer::drawString(GfxState * state, const GooString * s)
         }
 
         tracer.draw_char(state, dx, dy, width, height, !drawChars || inTransparencyGroup);
+        if (param.semantic_tables)
+        {
+            int mcid = -1;
+            for (auto it = mcid_stack.rbegin(); it != mcid_stack.rend(); ++it)
+                if (*it >= 0) { mcid = *it; break; }
+            char_mcids.push_back(mcid);
+            // visual font size in pt
+            char_ems.push_back((float)(cur_text_state.font_size * cur_text_state.font_info->font_size_scale / text_scale_factor1));
+        }
 
         bool is_space = false;
         if (n == 1 && *p == ' ') 
@@ -188,6 +197,9 @@ void HTMLRenderer::drawString(GfxState * state, const GooString * s)
 
 bool HTMLRenderer::is_char_covered(int index)
 {
+    // chars are tracked for the semantic layer too, but only hidden with visibility correction
+    if (!param.correct_text_visibility)
+        return false;
     auto covered = covered_text_detector.get_chars_covered();
     if (index < 0 || index >= (int)covered.size())
     {

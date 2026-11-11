@@ -39,6 +39,15 @@ public:
     std::function<void(cairo_t *cairo, double * bbox)> on_char_drawn;
     // a char is drawn out of/partially in the clip area
     std::function<void(cairo_t *cairo, double * bbox, int pts_visible)> on_char_clipped;
+    /*
+     * An axis-aligned straight line was stroked (kind == RULE_STROKE, (x0,y0)-(x1,y1) is the
+     * center line and `width` the line width) or an axis-aligned rectangle was filled
+     * (kind == RULE_FILL, (x0,y0)-(x1,y1) are the corners, width == 0).
+     * Coordinates are in the same (page) space as the char bboxes.
+     * Used to detect table rulings.
+     */
+    enum { RULE_STROKE = 0, RULE_FILL = 1 };
+    std::function<void(double x0, double y0, double x1, double y1, double width, int kind)> on_rule_drawn;
 
     DrawingTracer(const Param & param);
     virtual ~DrawingTracer();
@@ -62,8 +71,12 @@ public:
     void save();
     void restore();
 
+    // whether drawing operations are traced at all
+    bool tracing() const { return param.correct_text_visibility || param.semantic_tables; }
+
 private:
     void finish();
+    void emit_fill_rects(const GfxPath * path);
     // Following methods operate in user space (just before CTM is applied)
     void do_path(GfxState * state, const GfxPath * path);
     void draw_non_char_bbox(GfxState * state, double * bbox, int what);

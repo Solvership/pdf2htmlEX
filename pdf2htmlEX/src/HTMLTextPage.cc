@@ -76,7 +76,7 @@ void HTMLTextPage::dump_text(ostream & out)
                 {
                     (*text_line_iter)->clip(cs);
                 }
-                (*text_line_iter)->dump_text(out);
+                (*text_line_iter)->dump_text(out, semantic_tags);
                 ++text_line_iter;
             }
             if(has_clip)
@@ -101,9 +101,12 @@ void HTMLTextPage::dump_css(ostream & out)
 
 void HTMLTextPage::clear(void)
 {
+    for(auto p : text_lines)
+        delete p;
     text_lines.clear();
     clips.clear();
     cur_line = nullptr;
+    semantic_tags = nullptr;
 }
 
 void HTMLTextPage::open_new_line(const HTMLLineState & line_state)

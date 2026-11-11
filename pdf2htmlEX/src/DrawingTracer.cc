@@ -7,6 +7,9 @@
 
 #include "GfxFont.h"
 
+#include <algorithm>
+#include <cmath>
+
 #include "util/math.h"
 #include "DrawingTracer.h"
 
@@ -67,7 +70,7 @@ void DrawingTracer::finish()
 // and should trace ctm changes ourself (via cairo).
 void DrawingTracer::update_ctm(GfxState *state, double m11, double m12, double m21, double m22, double m31, double m32)
 {
-    if (!param.correct_text_visibility)
+    if (!tracing())
         return;
 
     double *tmp = new double[6];
@@ -86,7 +89,7 @@ void DrawingTracer::update_ctm(GfxState *state, double m11, double m12, double m
 
 void DrawingTracer::clip(GfxState * state, bool even_odd)
 {
-    if (!param.correct_text_visibility)
+    if (!tracing())
         return;
     do_path(state, state->getPath());
     cairo_set_fill_rule(cairo, even_odd? CAIRO_FILL_RULE_EVEN_ODD : CAIRO_FILL_RULE_WINDING);
@@ -103,7 +106,7 @@ void DrawingTracer::clip(GfxState * state, bool even_odd)
 
 void DrawingTracer::clip_to_stroke_path(GfxState * state)
 {
-    if (!param.correct_text_visibility)
+    if (!tracing())
         return;
 
     printf("TODO:clip_to_stroke_path\n");
@@ -112,7 +115,7 @@ void DrawingTracer::clip_to_stroke_path(GfxState * state)
 
 void DrawingTracer::save()
 {
-    if (!param.correct_text_visibility)
+    if (!tracing())
         return;
     cairo_save(cairo);
     double *e = new double[6];
@@ -125,7 +128,7 @@ void DrawingTracer::save()
 }
 void DrawingTracer::restore()
 {
-    if (!param.correct_text_visibility)
+    if (!tracing())
         return;
     cairo_restore(cairo);
     ctm_stack.pop_back();
@@ -188,6 +191,41 @@ void DrawingTracer::do_path(GfxState * state, const GfxPath * path)
 
 void DrawingTracer::stroke(GfxState * state)
 {
+    if (!tracing())
+        return;
+
+    // Collect straight axis-aligned segments as potential table rulings
+    if (on_rule_drawn && state->getStrokeOpacity() > 0)
+    {
+        double lwx = sqrt(0.5), lwy = sqrt(0.5);
+        tm_transform(ctm_stack.back(), lwx, lwy, true);
+        double lw = sqrt(lwx * lwx + lwy * lwy) * state->getLineWidth();
+        const GfxPath * path = state->getPath();
+        for (int i = 0; i < path->getNumSubpaths(); ++i) {
+            const GfxSubpath * subpath = path->getSubpath(i);
+            int n = subpath->getNumPoints();
+            if (n <= 0)
+                continue;
+            double px = subpath->getX(0), py = subpath->getY(0);
+            xform_pt(px, py);
+            for (int j = 1; j < n; ) {
+                if (subpath->getCurve(j)) {
+                    px = subpath->getX(j + 2);
+                    py = subpath->getY(j + 2);
+                    xform_pt(px, py);
+                    j += 3;
+                    continue;
+                }
+                double x = subpath->getX(j), y = subpath->getY(j);
+                xform_pt(x, y);
+                on_rule_drawn(px, py, x, y, lw, RULE_STROKE);
+                px = x;
+                py = y;
+                ++j;
+            }
+        }
+    }
+
     if (!param.correct_text_visibility)
         return;
 
@@ -279,6 +317,12 @@ void DrawingTracer::stroke(GfxState * state)
 
 void DrawingTracer::fill(GfxState * state, bool even_odd)
 {
+    if (!tracing())
+        return;
+
+    if (on_rule_drawn && state->getFillOpacity() > 0)
+        emit_fill_rects(state->getPath());
+
     if (!param.correct_text_visibility)
         return;
 
@@ -298,6 +342,42 @@ void DrawingTracer::fill(GfxState * state, bool even_odd)
 #endif
 
     draw_non_char_bbox(state, fbox, 1);
+}
+
+// Report every axis-aligned rectangular subpath of a filled path
+void DrawingTracer::emit_fill_rects(const GfxPath * path)
+{
+    for (int i = 0; i < path->getNumSubpaths(); ++i) {
+        const GfxSubpath * subpath = path->getSubpath(i);
+        int n = subpath->getNumPoints();
+        if (n < 4 || n > 5)
+            continue;
+        double xs[5], ys[5];
+        bool ok = true;
+        for (int j = 0; j < n; ++j) {
+            if (subpath->getCurve(j)) { ok = false; break; }
+            xs[j] = subpath->getX(j);
+            ys[j] = subpath->getY(j);
+            xform_pt(xs[j], ys[j]);
+        }
+        if (!ok)
+            continue;
+        if (n == 5 && !(equal(xs[4], xs[0]) && equal(ys[4], ys[0])))
+            continue;
+        // every edge must be horizontal or vertical
+        for (int j = 0; j < 4 && ok; ++j) {
+            int k = (j + 1) % 4;
+            if (!(std::abs(xs[j] - xs[k]) < 0.01 || std::abs(ys[j] - ys[k]) < 0.01))
+                ok = false;
+        }
+        if (!ok)
+            continue;
+        double x0 = std::min(std::min(xs[0], xs[1]), std::min(xs[2], xs[3]));
+        double x1 = std::max(std::max(xs[0], xs[1]), std::max(xs[2], xs[3]));
+        double y0 = std::min(std::min(ys[0], ys[1]), std::min(ys[2], ys[3]));
+        double y1 = std::max(std::max(ys[0], ys[1]), std::max(ys[2], ys[3]));
+        on_rule_drawn(x0, y0, x1, y1, 0, RULE_FILL);
+    }
 }
 
 void DrawingTracer::draw_non_char_bbox(GfxState * state, double * bbox, int what)
@@ -324,8 +404,12 @@ void DrawingTracer::draw_char_bbox(GfxState * state, double * bbox, int inTransp
         return;
     }
     if (!param.correct_text_visibility) {
-        double bbox[4] = { 0, 0, 0, 0 }; // bbox not relevant if not correcting text visibility
-        on_char_drawn(cairo, bbox);
+        if (!param.semantic_tables) {
+            double zero_bbox[4] = { 0, 0, 0, 0 }; // bbox not relevant if not correcting text visibility
+            on_char_drawn(cairo, zero_bbox);
+        } else {
+            on_char_drawn(cairo, bbox); // semantic analysis needs the real position
+        }
         return;
     }
 
@@ -371,7 +455,7 @@ void DrawingTracer::draw_char_bbox(GfxState * state, double * bbox, int inTransp
 
 void DrawingTracer::draw_image(GfxState *state)
 {
-    if (!param.correct_text_visibility)
+    if (!tracing())
         return;
 
     double x1, y1, x2, y2, x3, y3, x4, y4;

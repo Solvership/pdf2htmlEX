@@ -86,7 +86,18 @@ HTMLRenderer::HTMLRenderer(const char* progPath, Param & param)
     tracer.on_char_clipped =
             [this](cairo_t *cairo, double * box, int partial) { covered_text_detector.add_char_bbox_clipped(cairo, box, partial); };
     tracer.on_non_char_drawn =
-            [this](cairo_t *cairo, double * box, int what) { covered_text_detector.add_non_char_bbox(cairo, box, what); };
+            [this](cairo_t *cairo, double * box, int what) {
+                // the tracer may also run for the semantic layer only
+                if (this->param.correct_text_visibility)
+                    covered_text_detector.add_non_char_bbox(cairo, box, what);
+            };
+    if (param.semantic_tables)
+    {
+        tracer.on_rule_drawn =
+            [this](double x0, double y0, double x1, double y1, double width, int kind) {
+                page_rules.push_back(semantic::RawRule{x0, y0, x1, y1, width, kind});
+            };
+    }
 }
 
 HTMLRenderer::~HTMLRenderer()
@@ -103,6 +114,19 @@ void HTMLRenderer::process(PDFDoc *doc)
     xref = doc->getXRef();
 
     pre_process(doc);
+
+    if (param.semantic_tables)
+    {
+        semantic_writer.reset(new semantic::SemanticWriter(param));
+        if (semantic::Options::from_param(param).detect_tagged)
+        {
+            structure_mapper.reset(new semantic::StructureMapper());
+            if (!structure_mapper->load(doc))
+                structure_mapper.reset();
+            else if (param.debug)
+                cerr << "Tagged PDF: " << structure_mapper->table_count() << " table(s) in the structure tree" << endl;
+        }
+    }
 
     ///////////////////
     // Process pages
@@ -200,6 +224,11 @@ void HTMLRenderer::startPage(int pageNum, GfxState *state, XRef * xref)
     covered_text_detector.reset();
     tracer.reset(state);
 
+    char_mcids.clear();
+    char_ems.clear();
+    mcid_stack.clear();
+    page_rules.clear();
+
     this->pageNum = pageNum;
 
     html_text_page.set_page_size(state->getPageWidth(), state->getPageHeight());
@@ -254,6 +283,12 @@ void HTMLRenderer::endPage() {
         }
     }
 
+    if (param.semantic_tables)
+    {
+        analyze_page_semantics();
+        html_text_page.set_semantic_tags(semantic_writer->want("attrs") ? &cur_semantic_tags : nullptr);
+    }
+
     // dump all text
     html_text_page.dump_text(*f_curpage);
     html_text_page.dump_css(f_css.fs);
@@ -268,6 +303,15 @@ void HTMLRenderer::endPage() {
 
     // close box
     (*f_curpage) << "</div>";
+
+    if (param.semantic_tables)
+    {
+        if (semantic_writer->want("inline"))
+            semantic_writer->write_inline(*f_curpage, cur_semantic);
+        semantic_writer->add_page(cur_semantic);
+        cur_semantic = semantic::PageResult();
+        cur_semantic_tags = SemanticTags();
+    }
 
     // dump info for js
     // TODO: create a function for this
@@ -403,6 +447,12 @@ void HTMLRenderer::pre_process(PDFDoc * doc)
 
 void HTMLRenderer::post_process(void)
 {
+    if (semantic_writer)
+    {
+        semantic_writer->finish();
+        semantic_writer.reset();
+    }
+
     dump_css();
     
     // close files if they opened

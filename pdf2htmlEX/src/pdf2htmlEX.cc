@@ -110,6 +110,32 @@ void embed_parser (const char * str)
     }
 }
 
+void preset_parser (const char * str)
+{
+    std::string p = str;
+    if (p == "fidelity" || p == "semantic")
+    {
+        // maximal visual fidelity
+        param.bg_format = "svg";
+        param.svg_embed_bitmap = 1;
+        param.process_type3 = 1;
+        param.correct_text_visibility = 2;
+        param.embed_external_font = 1;
+        param.font_size_multiplier = 4.0;
+        param.desired_dpi = 288;
+        if (p == "semantic")
+        {
+            param.semantic_tables = 1;
+            param.semantic_output = "attrs,inline,json,html";
+        }
+    }
+    else
+    {
+        cerr << "Unknown preset `" << p << "`, known presets: fidelity, semantic" << endl;
+        exit(EXIT_FAILURE);
+    }
+}
+
 void prepare_directories()
 {
     std::string tmp_dir = param.tmp_dir + "/pdf2htmlEX-XXXXXX";
@@ -188,6 +214,16 @@ void parse_options (int argc, char **argv)
         .add("optimize-text", &param.optimize_text, 0, "try to reduce the number of HTML elements used for text")
         .add("correct-text-visibility", &param.correct_text_visibility, 1, "0: Don't do text visibility checks. 1: Fully occluded text handled. 2: Partially occluded text handled")
         .add("covered-text-dpi", &param.text_dpi, 300, "Rendering DPI to use if correct-text-visibility == 2 and there is partially covered text on the page")
+
+        // semantic layer
+        .add("semantic-tables", &param.semantic_tables, 0, "detect tables and paragraphs and annotate the text (the visual output is unchanged)")
+        .add("table-detect", &param.table_detect, "tagged,ruled,hrules", "table detectors: comma separated list of tagged,ruled,hrules,stream, or all")
+        .add("semantic-output", &param.semantic_output, "attrs,inline,json", "semantic outputs: comma separated list of attrs,inline,json,html")
+        .add("semantic-paragraphs", &param.semantic_paragraphs, 1, "group text outside of tables into paragraphs")
+        .add("dehyphenate", &param.dehyphenate, 0, "join words hyphenated at line ends in semantic text")
+        .add("semantic-spans", &param.semantic_spans, 0, "wrap text of lines mixing several cells in <span data-*> (more convenient for parsers, but may shift anti-aliasing by a fraction of a pixel); default: character ranges in data-sem")
+        .add("cell-line-join", &param.cell_line_join, "space", "how lines of a table cell are joined in semantic HTML: space or br")
+        .add("preset", "apply a group of options: fidelity, semantic (fidelity + semantic tables)", preset_parser, true)
 
         // background image
         .add("bg-format", &param.bg_format, "png", "specify background image format")

@@ -66,6 +66,9 @@
 #include "BackgroundRenderer/BackgroundRenderer.h"
 #include "CoveredTextDetector.h"
 #include "DrawingTracer.h"
+#include "Semantic/Semantic.h"
+#include "Semantic/StructureMapper.h"
+#include "Semantic/SemanticWriter.h"
 
 #include "util/const.h"
 #include "util/misc.h"
@@ -182,6 +185,10 @@ struct HTMLRenderer : OutputDev
 
 
     virtual void processLink(AnnotLink * al);
+
+    // marked content (tagged PDF), used by the semantic layer
+    virtual void beginMarkedContent(const char * name, Dict * properties);
+    virtual void endMarkedContent(GfxState * state);
 
     /*
      * Covered text handling.
@@ -379,6 +386,21 @@ protected:
 
     CoveredTextDetector covered_text_detector;
     DrawingTracer tracer;
+
+    ////////////////////////////////////////////////////
+    // semantic layer (tables / paragraphs)
+    ////////////////////////////////////////////////////
+    // run the analysis of the current page, before its text is dumped
+    void analyze_page_semantics(void);
+    // per drawn char (same index as covered_text_detector): marked content id, font size (pt)
+    std::vector<int> char_mcids;
+    std::vector<float> char_ems;
+    std::vector<int> mcid_stack;
+    std::vector<semantic::RawRule> page_rules;
+    std::unique_ptr<semantic::StructureMapper> structure_mapper;
+    std::unique_ptr<semantic::SemanticWriter> semantic_writer;
+    semantic::PageResult cur_semantic;
+    SemanticTags cur_semantic_tags;
 };
 
 } //namespace pdf2htmlEX

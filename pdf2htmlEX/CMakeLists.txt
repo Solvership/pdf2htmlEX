@@ -156,6 +156,7 @@ set(PDF2HTMLEX_SRC ${PDF2HTMLEX_SRC}
     src/HTMLRenderer/outline.cc
     src/HTMLRenderer/state.cc
     src/HTMLRenderer/text.cc
+    src/HTMLRenderer/semantic.cc
     src/BackgroundRenderer/BackgroundRenderer.h
     src/BackgroundRenderer/BackgroundRenderer.cc
     src/BackgroundRenderer/SplashBackgroundRenderer.h
@@ -203,6 +204,14 @@ set(PDF2HTMLEX_SRC ${PDF2HTMLEX_SRC}
     src/StringFormatter.cc
     src/TmpFiles.h
     src/TmpFiles.cc
+    src/Semantic/Semantic.h
+    src/Semantic/TextLayout.cc
+    src/Semantic/TableDetector.cc
+    src/Semantic/PageAnalyzer.cc
+    src/Semantic/StructureMapper.h
+    src/Semantic/StructureMapper.cc
+    src/Semantic/SemanticWriter.h
+    src/Semantic/SemanticWriter.cc
     )
 
 add_executable(pdf2htmlEX ${PDF2HTMLEX_SRC})
