@@ -1,0 +1,36 @@
+{
+ "tables": [
+  {
+   "page": 1,
+   "source": "stream",
+   "rows": 4,
+   "cols": 3,
+   "cells": [
+    [
+     "Partner",
+     "Uloga",
+     "OIB"
+    ],
+    [
+     "HEP d.d.",
+     "Kupac",
+     "28921383001"
+    ],
+    [
+     "Solar d.o.o.",
+     "Proizvođač",
+     "12345678901"
+    ],
+    [
+     "Vjetar j.d.o.o.",
+     "Proizvođač",
+     "98765432109"
+    ]
+   ]
+  }
+ ],
+ "paragraphs": [
+  "Ovo je običan odlomak teksta koji se proteže preko nekoliko redaka kako bi se provjerilo da grupiranje odlomaka radi ispravno i da se obični tekst ne prepoznaje kao tablica. Odlomak ima dovoljno riječi za tri retka teksta na stranici formata A4.",
+  "Drugi odlomak. Kratak."
+ ]
+}

@@ -253,6 +253,7 @@ set(PDF2HTMLEX_RESOURCE
     ${CMAKE_SOURCE_DIR}/share/manifest
     ${CMAKE_SOURCE_DIR}/share/pdf2htmlEX.js
     ${CMAKE_SOURCE_DIR}/share/pdf2htmlEX.min.js
+    ${CMAKE_SOURCE_DIR}/share/pdf2htmlEX-semantic.js
     ${CMAKE_SOURCE_DIR}/share/pdf2htmlEX-64x64.png
     )
 install (FILES ${PDF2HTMLEX_RESOURCE} DESTINATION share/pdf2htmlEX)

@@ -100,6 +100,101 @@ void build_tagged_tables(const PageInput & in, vector<bool> & taken, vector<Tabl
     }
 }
 
+/*
+ * A gutter is a vertical white channel shared by several consecutive lines,
+ * e.g. between the columns of a two column layout.
+ */
+struct Gutter { double x0, x1; int line0, line1; };
+
+vector<Gutter> find_gutters(const vector<Char> & chars, const vector<VLine> & lines)
+{
+    const int MIN_LINES = 4;
+    vector<Gutter> out;
+    struct Chain { double x0, x1; int line0, last; };
+    vector<Chain> chains;
+    for (size_t li = 0; li < lines.size(); ++li)
+    {
+        const VLine & l = lines[li];
+        double em = max(l.em, 1.0);
+        // gaps of the line
+        vector<std::pair<double, double>> gaps;
+        const Char * prev = nullptr;
+        for (int i : l.chars)
+        {
+            const Char & c = chars[i];
+            if (c.is_space() || !c.box.valid())
+                continue;
+            if (prev && c.box.x0 - prev->box.x1 >= 0.8 * em)
+                gaps.emplace_back(prev->box.x1, c.box.x0);
+            if (!prev || c.box.x1 > prev->box.x1)
+                prev = &c;
+        }
+        vector<Chain> next;
+        for (const auto & g : gaps)
+        {
+            bool extended = false;
+            for (const auto & ch : chains)
+            {
+                double a = max(ch.x0, g.first), b = min(ch.x1, g.second);
+                if (b - a >= 0.3 * em && ch.last + 1 == (int)li)
+                {
+                    next.push_back({a, b, ch.line0, (int)li});
+                    extended = true;
+                }
+            }
+            if (!extended)
+                next.push_back({g.first, g.second, (int)li, (int)li});
+        }
+        // chains that ended
+        for (const auto & ch : chains)
+        {
+            bool continued = false;
+            for (const auto & n : next)
+                if (n.line0 == ch.line0 && n.x0 >= ch.x0 - 0.01 && n.x1 <= ch.x1 + 0.01)
+                    continued = true;
+            if (!continued && ch.last - ch.line0 + 1 >= MIN_LINES)
+                out.push_back({ch.x0, ch.x1, ch.line0, ch.last});
+        }
+        chains = next;
+    }
+    for (const auto & ch : chains)
+        if (ch.last - ch.line0 + 1 >= MIN_LINES)
+            out.push_back({ch.x0, ch.x1, ch.line0, ch.last});
+    return out;
+}
+
+vector<Segment> split_at_gutters(const vector<Char> & chars, const Segment & seg, const vector<Gutter> & gutters, int line)
+{
+    vector<double> cuts;
+    for (const auto & g : gutters)
+        if (line >= g.line0 && line <= g.line1 && g.x0 > seg.box.x0 && g.x1 < seg.box.x1)
+            cuts.push_back((g.x0 + g.x1) / 2);
+    if (cuts.empty())
+        return {seg};
+    std::sort(cuts.begin(), cuts.end());
+    vector<Segment> out(cuts.size() + 1);
+    for (int i : seg.chars)
+    {
+        const Char & c = chars[i];
+        size_t k = std::upper_bound(cuts.begin(), cuts.end(), c.box.cx()) - cuts.begin();
+        if (out[k].chars.empty() && c.is_space())
+            continue;
+        out[k].chars.push_back(i);
+        if (!c.is_space())
+        {
+            if (out[k].box.valid())
+                out[k].box.expand(c.box);
+            else
+                out[k].box = c.box;
+        }
+    }
+    vector<Segment> res;
+    for (auto & s : out)
+        if (!s.chars.empty() && s.box.valid())
+            res.push_back(s);
+    return res;
+}
+
 struct Para
 {
     Box box;
@@ -155,15 +250,19 @@ void build_paragraphs(const PageInput & in, const vector<bool> & taken, const Op
             ids.push_back(ch.index);
     auto lines = build_visual_lines(in.chars, ids);
 
+    // column gutters (multi column layouts): split lines there as well
+    auto gutters = find_gutters(in.chars, lines);
+
     vector<Segment> segs;
     for (size_t li = 0; li < lines.size(); ++li)
-        for (auto & s : split_segments(in.chars, lines[li], 1.5))
-        {
-            if (s.chars.empty())
-                continue;
-            s.vline = (int)li;
-            segs.push_back(s);
-        }
+        for (auto & s0 : split_segments(in.chars, lines[li], 1.5))
+            for (auto & s : split_at_gutters(in.chars, s0, gutters, (int)li))
+            {
+                if (s.chars.empty())
+                    continue;
+                s.vline = (int)li;
+                segs.push_back(s);
+            }
     std::stable_sort(segs.begin(), segs.end(), [](const Segment & a, const Segment & b) {
         return a.box.y0 < b.box.y0 - 0.5 || (abs(a.box.y0 - b.box.y0) <= 0.5 && a.box.x0 < b.box.x0);
     });
@@ -250,6 +349,51 @@ void build_paragraphs(const PageInput & in, const vector<bool> & taken, const Op
     }
 }
 
+/*
+ * Reading order of blocks by recursive XY-cut: columns first (so that a two
+ * column layout is read column by column), then horizontal bands.
+ */
+void xy_cut(const vector<Box> & boxes, vector<int> idx, vector<int> & order)
+{
+    if (idx.size() <= 1)
+    {
+        for (int i : idx)
+            order.push_back(i);
+        return;
+    }
+    for (int dir = 0; dir < 2; ++dir)
+    {
+        // dir 0: vertical cuts (split along x), dir 1: horizontal cuts (along y)
+        vector<int> sorted = idx;
+        std::sort(sorted.begin(), sorted.end(), [&](int a, int b) {
+            return dir == 0 ? boxes[a].x0 < boxes[b].x0 : boxes[a].y0 < boxes[b].y0;
+        });
+        vector<vector<int>> groups;
+        double reach = -1e30;
+        for (int i : sorted)
+        {
+            double lo = dir == 0 ? boxes[i].x0 : boxes[i].y0;
+            double hi = dir == 0 ? boxes[i].x1 : boxes[i].y1;
+            if (groups.empty() || lo > reach + 0.5)
+                groups.push_back({});
+            groups.back().push_back(i);
+            reach = max(reach, hi);
+        }
+        if (groups.size() > 1)
+        {
+            for (auto & g : groups)
+                xy_cut(boxes, g, order);
+            return;
+        }
+    }
+    // no cut possible: top to bottom, left to right
+    std::sort(idx.begin(), idx.end(), [&](int a, int b) {
+        return boxes[a].y0 < boxes[b].y0 - 1 || (abs(boxes[a].y0 - boxes[b].y0) <= 1 && boxes[a].x0 < boxes[b].x0);
+    });
+    for (int i : idx)
+        order.push_back(i);
+}
+
 } // namespace
 
 PageResult analyze_page(const PageInput & in, const Options & opt)
@@ -306,21 +450,39 @@ PageResult analyze_page(const PageInput & in, const Options & opt)
         if (t.source != "tagged")
             finalize_table(in, t, opt);
 
-    std::stable_sort(tables.begin(), tables.end(), [](const Table & a, const Table & b) {
-        return a.box.y0 < b.box.y0 - 1 || (abs(a.box.y0 - b.box.y0) <= 1 && a.box.x0 < b.box.x0);
-    });
+    if (opt.paragraphs)
+        build_paragraphs(in, taken, opt, res.paragraphs);
+
+    // reading order of all blocks
+    {
+        vector<Box> boxes;
+        for (const auto & t : tables)
+            boxes.push_back(t.box);
+        for (const auto & p : res.paragraphs)
+            boxes.push_back(p.box);
+        vector<int> idx(boxes.size());
+        for (size_t i = 0; i < idx.size(); ++i)
+            idx[i] = (int)i;
+        vector<int> order;
+        xy_cut(boxes, idx, order);
+        for (size_t k = 0; k < order.size(); ++k)
+        {
+            int i = order[k];
+            if (i < (int)tables.size())
+                tables[i].order = (int)k;
+            else
+                res.paragraphs[i - tables.size()].order = (int)k;
+        }
+        std::stable_sort(tables.begin(), tables.end(), [](const Table & a, const Table & b) { return a.order < b.order; });
+        std::stable_sort(res.paragraphs.begin(), res.paragraphs.end(),
+                         [](const Paragraph & a, const Paragraph & b) { return a.order < b.order; });
+    }
     for (size_t k = 0; k < tables.size(); ++k)
     {
         tables[k].id = "p" + std::to_string(in.page) + "t" + std::to_string(k);
         tables[k].page = in.page;
         tables[k].group = tables[k].id;
     }
-
-    if (opt.paragraphs)
-        build_paragraphs(in, taken, opt, res.paragraphs);
-    std::stable_sort(res.paragraphs.begin(), res.paragraphs.end(), [](const Paragraph & a, const Paragraph & b) {
-        return a.box.y0 < b.box.y0 - 1 || (abs(a.box.y0 - b.box.y0) <= 1 && a.box.x0 < b.box.x0);
-    });
     for (size_t k = 0; k < res.paragraphs.size(); ++k)
     {
         res.paragraphs[k].id = "p" + std::to_string(in.page) + "p" + std::to_string(k);

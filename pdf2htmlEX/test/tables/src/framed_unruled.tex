@@ -1,0 +1,19 @@
+% Framed table: vertical rules, header rule, but no rules between the body rows.
+% One description wraps onto two lines: it must stay one row.
+\documentclass[a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\pagestyle{empty}
+\begin{document}
+\begin{tabular}{|l|p{5cm}|r|}
+\hline
+Kod & Opis & Količina \\
+\hline
+K1 & Kabel & 12 \\
+K2 & Transformator s dugim opisom koji se prelama u drugi redak & 1 \\
+K3 & Brojilo & 40 \\
+K4 & Osigurač & 300 \\
+\hline
+\end{tabular}
+\end{document}

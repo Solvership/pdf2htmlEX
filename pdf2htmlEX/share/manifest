@@ -55,6 +55,9 @@ $css
 # });
 #TEST_IGNORE_BEGIN
 @pdf2htmlEX.min.js
+
+# Copy & paste of tables / paragraphs (only output with --semantic-tables 1)
+$semantic_js
 """
 <script>
 try{

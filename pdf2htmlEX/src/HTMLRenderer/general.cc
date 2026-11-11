@@ -540,6 +540,12 @@ void HTMLRenderer::post_process(void)
                     output.clear(); // output will set fail big if fin is empty
                 }
             }
+            else if (line == "$semantic_js")
+            {
+                // copy & paste support of the semantic layer, only when it is enabled
+                if (param.semantic_tables)
+                    embed_file(output, param.data_dir + "/pdf2htmlEX-semantic.js", ".js", true);
+            }
             else if (line == "$pages")
             {
                 ifstream fin(f_pages.path, ifstream::binary);

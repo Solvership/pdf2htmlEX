@@ -132,15 +132,13 @@ void SemanticWriter::write_table_html(ostream & out, const vector<const Table *>
 
 void SemanticWriter::write_inline(ostream & out, const PageResult & page) const
 {
-    struct Block { double y, x; int kind; size_t idx; };
+    struct Block { int order; int kind; size_t idx; };
     vector<Block> blocks;
     for (size_t i = 0; i < page.tables.size(); ++i)
-        blocks.push_back({page.tables[i].box.y0, page.tables[i].box.x0, 0, i});
+        blocks.push_back({page.tables[i].order, 0, i});
     for (size_t i = 0; i < page.paragraphs.size(); ++i)
-        blocks.push_back({page.paragraphs[i].box.y0, page.paragraphs[i].box.x0, 1, i});
-    std::stable_sort(blocks.begin(), blocks.end(), [](const Block & a, const Block & b) {
-        return a.y < b.y - 1 || (std::abs(a.y - b.y) <= 1 && a.x < b.x);
-    });
+        blocks.push_back({page.paragraphs[i].order, 1, i});
+    std::stable_sort(blocks.begin(), blocks.end(), [](const Block & a, const Block & b) { return a.order < b.order; });
 
     out << "<div class=\"pdf2htmlEX-semantic\" data-page-no=\"" << std::dec << page.page << "\" hidden>";
     bool in_list = false;

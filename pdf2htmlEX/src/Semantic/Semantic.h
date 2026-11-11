@@ -105,6 +105,7 @@ struct Table
     std::string continued_from; // id of the table on a previous page this one continues
     std::string group;        // id of the first table of a continued chain
     bool repeated_header = false; // first row repeats the header of the chain's first table
+    int order = 0;            // reading order among the blocks of the page
     std::vector<double> col_bounds; // column boundaries (x), size cols+1, if known
 };
 
@@ -113,6 +114,7 @@ struct Paragraph
     std::string id;           // e.g. "p2p5"
     int page = 0;
     std::string tag = "p";    // p, h1..h6, li, caption
+    int order = 0;            // reading order among the blocks of the page
     Box box;
     std::vector<int> chars;
     std::vector<std::string> lines;

@@ -1,0 +1,39 @@
+{
+ "tables": [
+  {
+   "page": 1,
+   "source": "tagged",
+   "rows": 4,
+   "cols": 3,
+   "cells": [
+    [
+     "OMM",
+     "Partner",
+     "Napomena"
+    ],
+    [
+     "0001",
+     "Elektra Zagreb",
+     "Priključna snaga povećana nakon rekonstrukcije trafostanice"
+    ],
+    [
+     "0002",
+     "Solarna elektrana Kaštela d.o.o.",
+     "Nema"
+    ],
+    [
+     {
+      "text": "Ukupno mjesta",
+      "rs": 1,
+      "cs": 2
+     },
+     "2"
+    ]
+   ]
+  }
+ ],
+ "paragraphs": [
+  "Popis obračunskih mjernih mjesta",
+  "Kraj dokumenta."
+ ]
+}

@@ -1,0 +1,71 @@
+{
+ "tables": [
+  {
+   "page": 1,
+   "source": "ruled",
+   "rows": 5,
+   "cols": 3,
+   "cells": [
+    [
+     "Šifra",
+     "Opis stavke",
+     "Iznos"
+    ],
+    [
+     "A-001",
+     "Isporuka električne energije za razdoblje od siječnja do ožujka",
+     "1.250,00"
+    ],
+    [
+     "A-002",
+     "Mrežarina",
+     "310,50"
+    ],
+    [
+     "A-003",
+     "Naknada za obnovljive izvore en-ergije i poticanje učinkovitosti",
+     "89,90"
+    ],
+    [
+     {
+      "text": "Ukupno",
+      "rs": 1,
+      "cs": 2
+     },
+     "1.650,40"
+    ]
+   ]
+  },
+  {
+   "page": 1,
+   "source": "ruled",
+   "rows": 3,
+   "cols": 3,
+   "cells": [
+    [
+     {
+      "text": "Grupa",
+      "rs": 2,
+      "cs": 1
+     },
+     "Stavka 1",
+     "10"
+    ],
+    [
+     "Stavka 2",
+     "20"
+    ],
+    [
+     "Ostalo",
+     "Stavka 3",
+     "30"
+    ]
+   ]
+  }
+ ],
+ "paragraphs": [
+  "Ugovor o isporuci – prilog A",
+  "Druga tablica:",
+  "Tekst nakon tablice koji nije dio tablice i ne smije biti detektiran kao tablica."
+ ]
+}

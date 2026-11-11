@@ -1,0 +1,38 @@
+{
+ "tables": [
+  {
+   "page": 1,
+   "source": "ruled",
+   "rows": 5,
+   "cols": 3,
+   "cells": [
+    [
+     "Kod",
+     "Opis",
+     "Količina"
+    ],
+    [
+     "K1",
+     "Kabel",
+     "12"
+    ],
+    [
+     "K2",
+     "Transformator s dugim opisom koji se prelama u drugi redak",
+     "1"
+    ],
+    [
+     "K3",
+     "Brojilo",
+     "40"
+    ],
+    [
+     "K4",
+     "Osigurač",
+     "300"
+    ]
+   ]
+  }
+ ],
+ "paragraphs": []
+}
