@@ -117,3 +117,21 @@ nego **dodavanjem semantičkog sloja tablica** preko postojećeg 1:1 vizualnog s
    (broj redova/stupaca, tekst ćelija – višeredna ćelija = jedna ćelija, spans).
 4. Ručno: otvoriti HTML u Chromeu, označiti tablicu, Ctrl+C → zalijepiti u LibreOffice Calc – broj redova odgovara PDF-u.
 5. Usporedba vizualnog podudaranja s izvornikom: `pdftoppm -r 144` stranice vs. headless screenshot HTML-a (pixel diff ispod praga).
+
+---
+
+## Status implementacije (2026-11-12, branch `feature/semantic-tables`)
+
+| Faza | Status | Napomena |
+|---|---|---|
+| 0 – Docker build, korpus, baseline | ✔ | `scripts/dev.sh`, `.baseline/` worktree `master`, 12 testnih PDF-ova |
+| 1 – Fidelity preset | ✔ (izmijenjeno) | mjerenjem: SVG + Type3; `--correct-text-visibility 2` i viši DPI su lošiji pa nisu u presetu |
+| 2 – Semantički sloj tablica | ✔ | tagged / ruled / hrules, `data-*` + `data-sem` rasponi, inline HTML, JSON, tables.html, copy handler |
+| 3 – Tablice bez linija, odlomci | ✔ | stream (opt-in), odlomci s detekcijom stupaca, XY-cut redoslijed čitanja |
+| 4 – Poppler/FontForge | ✔ | Poppler 26.11.0 + FontForge 20251009 (`VARIANT=trixie`), 24.06.1 i dalje radi |
+
+Odstupanje od plana: linije se **ne dijele** po ćelijama, jer to mijenja render. Za retke koji
+miješaju ćelije koriste se rasponi znakova (`data-sem`), uz opcijske span-ove (`--semantic-spans 1`).
+
+Verifikacija: isključena semantika → bajt-identično masteru (18 PDF-ova); uključena →
+pikselski identično (18 PDF-ova); `scripts/dev.sh test` zelen na obje verzije Popplera.
