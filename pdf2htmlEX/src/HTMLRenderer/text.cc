@@ -125,6 +125,11 @@ void HTMLRenderer::drawString(GfxState * state, const GooString * s)
             char_mcids.push_back(mcid);
             // visual font size in pt
             char_ems.push_back((float)(cur_text_state.font_size * cur_text_state.font_info->font_size_scale / text_scale_factor1));
+            std::string utext;
+            if (u && uLen > 0 && none_of(u, u + uLen, is_illegal_unicode))
+                for (int k = 0; k < uLen; ++k)
+                    append_utf8(utext, u[k]);
+            char_unicode.push_back(std::move(utext));
         }
 
         bool is_space = false;

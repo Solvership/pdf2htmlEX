@@ -8,7 +8,7 @@ set -e
 export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-1700000000}
 OUT=$1; shift
 OPTS=$1; shift
-NEW=/work/pdf2htmlEX/build
+NEW=${P2H_BUILD_DIR:-/work/pdf2htmlEX/build}
 OLD=/work/.baseline/pdf2htmlEX/build
 D=usr/local/share/pdf2htmlEX
 mkdir -p $OUT/old $OUT/new

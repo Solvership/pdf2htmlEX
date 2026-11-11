@@ -6,8 +6,10 @@
 # rebuilding after a source change is incremental.
 #
 # Usage: see scripts/dev.sh
+# BASE=debian:trixie is needed for Poppler >= 25.x (CMake 3.28, C++23, GLib 2.80)
 
-FROM debian:bookworm
+ARG BASE=debian:bookworm
+FROM ${BASE}
 
 ARG DEBIAN_FRONTEND=noninteractive
 

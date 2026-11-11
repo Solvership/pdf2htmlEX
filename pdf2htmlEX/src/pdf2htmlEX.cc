@@ -115,14 +115,15 @@ void preset_parser (const char * str)
     std::string p = str;
     if (p == "fidelity" || p == "semantic")
     {
-        // maximal visual fidelity
+        // visual fidelity, chosen by measurement (scripts/fidelity_metric.py):
+        // a vector (SVG) background stays exact at every zoom level (raster
+        // backgrounds blur when zooming in: 4-8x larger deviation at 4x zoom),
+        // Type 3 fonts become real (selectable) text.
+        // --correct-text-visibility 2 and a higher --dpi were measured to be worse.
         param.bg_format = "svg";
         param.svg_embed_bitmap = 1;
         param.process_type3 = 1;
-        param.correct_text_visibility = 2;
         param.embed_external_font = 1;
-        param.font_size_multiplier = 4.0;
-        param.desired_dpi = 288;
         if (p == "semantic")
         {
             param.semantic_tables = 1;

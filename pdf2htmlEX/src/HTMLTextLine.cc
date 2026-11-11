@@ -234,30 +234,6 @@ void HTMLTextLine::close_group_span(ostream & out)
     }
 }
 
-static void append_utf8(std::string & out, unsigned int cp)
-{
-    if (cp < 0x80)
-        out += (char)cp;
-    else if (cp < 0x800)
-    {
-        out += (char)(0xC0 | (cp >> 6));
-        out += (char)(0x80 | (cp & 0x3F));
-    }
-    else if (cp < 0x10000)
-    {
-        out += (char)(0xE0 | (cp >> 12));
-        out += (char)(0x80 | ((cp >> 6) & 0x3F));
-        out += (char)(0x80 | (cp & 0x3F));
-    }
-    else if (cp < 0x110000)
-    {
-        out += (char)(0xF0 | (cp >> 18));
-        out += (char)(0x80 | ((cp >> 12) & 0x3F));
-        out += (char)(0x80 | ((cp >> 6) & 0x3F));
-        out += (char)(0x80 | (cp & 0x3F));
-    }
-}
-
 void HTMLTextLine::collect_chars(std::vector<LineChar> & out) const
 {
     if (line_state.first_char_index < 0)

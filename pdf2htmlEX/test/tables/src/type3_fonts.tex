@@ -1,0 +1,14 @@
+% T1 encoding without scalable fonts: pdflatex embeds bitmap Type 3 fonts.
+\documentclass[a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\pagestyle{empty}
+\begin{document}
+\begin{tabular}{|l|p{5cm}|}
+\hline
+Šifra & Opis \\
+\hline
+T3 & Tekst u Type 3 fontu koji se prelama u dva retka tablice \\
+\hline
+\end{tabular}
+\end{document}

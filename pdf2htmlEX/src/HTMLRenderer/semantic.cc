@@ -14,6 +14,18 @@ namespace pdf2htmlEX {
 
 using std::vector;
 
+// true if the UTF-8 string is a single code point of a private use area
+static bool is_private_use(const std::string & s)
+{
+    if (s.size() == 3 && (unsigned char)s[0] == 0xEE)
+        return true; // U+E000 - U+EFFF
+    if (s.size() == 3 && (unsigned char)s[0] == 0xEF && (unsigned char)s[1] < 0xA4)
+        return true; // U+F000 - U+F8FF
+    if (s.size() == 4 && (unsigned char)s[0] == 0xF3 && (unsigned char)s[1] >= 0xB0)
+        return true; // planes 15/16
+    return false;
+}
+
 void HTMLRenderer::beginMarkedContent(const char * name, Dict * properties)
 {
     if (!param.semantic_tables)
@@ -92,6 +104,9 @@ void HTMLRenderer::analyze_page_semantics(void)
                 semantic::Char & c = in.chars[x.char_index];
                 c.line = (int)li;
                 c.text = x.text;
+                // prefer Poppler's unicode mapping when the HTML text had to use a private use code point
+                if (x.char_index < (int)char_unicode.size() && !char_unicode[x.char_index].empty() && is_private_use(x.text))
+                    c.text = char_unicode[x.char_index];
                 c.space_before = x.space_before;
             }
         }

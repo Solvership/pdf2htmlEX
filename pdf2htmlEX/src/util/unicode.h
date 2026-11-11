@@ -8,6 +8,7 @@
 #ifndef UNICODE_H__
 #define UNICODE_H__
 
+#include <string>
 #include <GfxFont.h>
 #include <CharTypes.h>
 
@@ -56,6 +57,31 @@ namespace pdf2htmlEX {
  * TODO Web specs? IE?
  *
  */
+// append the UTF-8 encoding of a code point
+inline void append_utf8(std::string & out, unsigned int cp)
+{
+    if (cp < 0x80)
+        out += (char)cp;
+    else if (cp < 0x800)
+    {
+        out += (char)(0xC0 | (cp >> 6));
+        out += (char)(0x80 | (cp & 0x3F));
+    }
+    else if (cp < 0x10000)
+    {
+        out += (char)(0xE0 | (cp >> 12));
+        out += (char)(0x80 | ((cp >> 6) & 0x3F));
+        out += (char)(0x80 | (cp & 0x3F));
+    }
+    else if (cp < 0x110000)
+    {
+        out += (char)(0xF0 | (cp >> 18));
+        out += (char)(0x80 | ((cp >> 12) & 0x3F));
+        out += (char)(0x80 | ((cp >> 6) & 0x3F));
+        out += (char)(0x80 | (cp & 0x3F));
+    }
+}
+
 inline bool is_illegal_unicode(Unicode c)
 {
     return (c < 0x20) || (c >= 0x7F && c <= 0xA0) || (c == 0xAD)

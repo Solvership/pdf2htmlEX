@@ -23,24 +23,28 @@ add_custom_target(dist
 
 find_package(PkgConfig)
 
+# Locations of the Poppler / FontForge source+build trees (built by buildScripts or scripts/dev.sh)
+set(POPPLER_DIR "${CMAKE_SOURCE_DIR}/../poppler" CACHE PATH "Poppler source tree containing build/")
+set(FONTFORGE_DIR "${CMAKE_SOURCE_DIR}/../fontforge" CACHE PATH "FontForge source tree containing build/")
+
 
 # SINCE we have a very intimate relationship with a particular version of 
 # poppler... we explicitly describe the poppler include and library 
 # paths.
 #
 include_directories(
-  ../poppler/build/poppler
-  ../poppler/build
-  ../poppler/poppler
-  ../poppler
+  ${POPPLER_DIR}/build/poppler
+  ${POPPLER_DIR}/build
+  ${POPPLER_DIR}/poppler
+  ${POPPLER_DIR}
 )
 #
 # The following order is critical as the glib functions use functions 
 # located in the main poppler library 
 #
 set(POPPLER_LIBRARIES ${POPPLER_LIBRARIES}
-  ${CMAKE_SOURCE_DIR}/../poppler/build/glib/libpoppler-glib.a
-  ${CMAKE_SOURCE_DIR}/../poppler/build/libpoppler.a
+  ${POPPLER_DIR}/build/glib/libpoppler-glib.a
+  ${POPPLER_DIR}/build/libpoppler.a
 )
 
 
@@ -71,16 +75,16 @@ endif()
 # paths.
 #
 include_directories(
-  ../fontforge/fontforge
-  ../fontforge
-  ../fontforge/build/inc
-  ../fontforge/inc
+  ${FONTFORGE_DIR}/fontforge
+  ${FONTFORGE_DIR}
+  ${FONTFORGE_DIR}/build/inc
+  ${FONTFORGE_DIR}/inc
 )
 #
 include_directories(${FONTFORGE_INCLUDE_DIRS})
 link_directories(${FONTFORGE_LIBRARY_DIRS})
 set(FONTFORGE_LIBRARIES ${FONTFORGE_LIBRARIES}
-  ${CMAKE_SOURCE_DIR}/../fontforge/build/lib/libfontforge.a
+  ${FONTFORGE_DIR}/build/lib/libfontforge.a
 )
 
 # If we are using Alpine Linux then we need to add -lintl
@@ -126,8 +130,13 @@ set(CMAKE_THREAD_PREFER_PTHREAD ON)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 set(PDF2HTMLEX_LIBS ${PDF2HTMLEX_LIBS} Threads::Threads)
-# Poppler-24.03.0 requires CXX20
-set(CMAKE_CXX_STANDARD 20)
+# Poppler-24.03.0 requires CXX20, Poppler >= 25.x requires CXX23
+file(STRINGS ${POPPLER_DIR}/CMakeLists.txt POPPLER_CXX_STD REGEX "set\\(CMAKE_CXX_STANDARD [0-9]+\\)")
+if(POPPLER_CXX_STD MATCHES "23")
+    set(CMAKE_CXX_STANDARD 23)
+else()
+    set(CMAKE_CXX_STANDARD 20)
+endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if(NOT CYGWIN)
     set(CMAKE_CXX_EXTENSIONS OFF)

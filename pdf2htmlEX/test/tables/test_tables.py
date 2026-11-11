@@ -22,7 +22,7 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
-BUILD = os.path.join(ROOT, 'pdf2htmlEX', 'build')
+BUILD = os.environ.get('P2H_BUILD_DIR', os.path.join(ROOT, 'pdf2htmlEX', 'build'))
 DATA = os.path.join(BUILD, 'install', 'usr', 'local', 'share', 'pdf2htmlEX')
 EXE = os.path.join(BUILD, 'pdf2htmlEX')
 EXPECTED = os.path.join(HERE, 'expected')

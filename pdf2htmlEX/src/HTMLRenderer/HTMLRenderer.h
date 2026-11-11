@@ -395,6 +395,9 @@ protected:
     // per drawn char (same index as covered_text_detector): marked content id, font size (pt)
     std::vector<int> char_mcids;
     std::vector<float> char_ems;
+    // per drawn char: the unicode text according to Poppler (ToUnicode / glyph names), UTF-8;
+    // differs from the HTML text when pdf2htmlEX had to remap the glyph (private use area)
+    std::vector<std::string> char_unicode;
     std::vector<int> mcid_stack;
     std::vector<semantic::RawRule> page_rules;
     std::unique_ptr<semantic::StructureMapper> structure_mapper;

@@ -226,6 +226,7 @@ void HTMLRenderer::startPage(int pageNum, GfxState *state, XRef * xref)
 
     char_mcids.clear();
     char_ems.clear();
+    char_unicode.clear();
     mcid_stack.clear();
     page_rules.clear();
 
