@@ -56,7 +56,7 @@ void CairoBackgroundRenderer::drawChar(GfxState *state, double x, double y,
     // - OR the text is used as path
     if((param.fallback || param.proof)
         || ( (state->getFont())
-            && ( (state->getFont()->getWMode())
+            && ( font_is_vertical(state->getFont().get())
                  || ((state->getFont()->getType() == fontType3) && (!param.process_type3))
                  || (state->getRender() >= 4)
                )
@@ -81,7 +81,7 @@ void CairoBackgroundRenderer::beginTextObject(GfxState *state)
     CairoOutputDev::beginTextObject(state);
 }
 
-void CairoBackgroundRenderer::beginString(GfxState *state, const GooString * str)
+void CairoBackgroundRenderer::beginString(GfxState *state, BeginStringArg str)
 {
     if (param.proof == 2)
         proof_begin_string(state, this);

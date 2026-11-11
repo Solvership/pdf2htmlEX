@@ -2,6 +2,17 @@
 
 [![Build Status](https://travis-ci.org/pdf2htmlEX/pdf2htmlEX.svg?branch=master)](https://travis-ci.org/pdf2htmlEX/pdf2htmlEX)
 
+# Local additions (branch feature/semantic-tables)
+
+* **Semantic layer** (`--semantic-tables 1`, `--preset semantic`): tables (from tagged PDFs,
+  ruling grids, horizontal rules, optionally text alignment) and paragraphs, as `data-*`
+  annotations, hidden semantic HTML, `.semantic.json` and `.tables.html`. Multi-line cells stay
+  one row; copy & paste of a table yields real rows. The visual output stays pixel identical.
+* `--preset fidelity` (SVG background, Type 3 fonts as text), chosen by measurement.
+* Docker based local build (`scripts/dev.sh`), Poppler 26.11 / FontForge 20251009 variant.
+
+Documentation (Croatian): [docs/semanticki-sloj.md](docs/semanticki-sloj.md)
+
 # Differences from upstream pdf2htmlEX: 
 
 This is my branch of pdf2htmlEX which aims to allow an open collaboration to help keep the project active. A number of changes and improvements have been incorporated from other forks:

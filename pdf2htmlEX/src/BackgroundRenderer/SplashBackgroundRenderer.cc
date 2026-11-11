@@ -20,7 +20,12 @@ using std::ifstream;
 const SplashColor SplashBackgroundRenderer::white = {255,255,255};
 
 SplashBackgroundRenderer::SplashBackgroundRenderer(const string & imgFormat, HTMLRenderer * html_renderer, const Param & param)
+#if P2H_POPPLER_VERSION >= 2500
+    // the reverseVideo parameter was removed
+    : SplashOutputDev(splashModeRGB8, 4, (SplashColorPtr)(&white), true, splashThinLineSolid) // DCRH: Make thin line mode = solid
+#else
     : SplashOutputDev(splashModeRGB8, 4, false, (SplashColorPtr)(&white), true, splashThinLineSolid) // DCRH: Make thin line mode = solid
+#endif
     , html_renderer(html_renderer)
     , param(param)
     , format(imgFormat)
@@ -71,7 +76,7 @@ void SplashBackgroundRenderer::beginTextObject(GfxState *state)
     SplashOutputDev::beginTextObject(state);
 }
 
-void SplashBackgroundRenderer::beginString(GfxState *state, const GooString * str)
+void SplashBackgroundRenderer::beginString(GfxState *state, BeginStringArg str)
 {
     if (param.proof == 2)
         proof_begin_string(state, this);
@@ -134,8 +139,8 @@ void SplashBackgroundRenderer::embed_image(int pageno)
                 throw string("Image format not supported: ") + format;
 
             SplashError e = bitmap->writeImgFile(splashImageFileFormat, (const char *)fn, param.actual_dpi, param.actual_dpi);
-            if (e != splashOk)
-                throw string("Cannot write background image. SplashErrorCode: ") + std::to_string(e);
+            if (e != SplashError{}) // splashOk / SplashError::NoError
+                throw string("Cannot write background image. SplashErrorCode: ") + std::to_string(static_cast<int>(e));
         }
 
         double h_scale = html_renderer->text_zoom_factor() * DEFAULT_DPI / param.actual_dpi;

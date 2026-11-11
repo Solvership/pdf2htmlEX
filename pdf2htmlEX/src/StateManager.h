@@ -16,6 +16,7 @@
 #include "Color.h"
 
 #include "util/math.h"
+#include "util/poppler_compat.h"
 #include "util/css_const.h"
 
 namespace pdf2htmlEX {
@@ -107,9 +108,9 @@ public:
     // return id
     long long install(const double * new_value) {
         Matrix m;
-        memcpy(m.m, new_value, 4 * sizeof(double));
+        memcpy(dptr(m.m), new_value, 4 * sizeof(double));
         auto iter = value_map.lower_bound(m);
-        if((iter != value_map.end()) && (tm_equal(m.m, iter->first.m, 4)))
+        if((iter != value_map.end()) && (tm_equal(dptr(m.m), dptr(iter->first.m), 4)))
         {
             return iter->second;
         }
@@ -314,7 +315,7 @@ public:
         // always ignore tm[4] and tm[5] because
         // we have already shifted the origin
         // TODO: recognize common matrices
-        const auto & m = matrix.m;
+        const double * m = dptr(matrix.m);
         auto prefixes = {"", "-ms-", "-webkit-"};
         if(tm_equal(m, ID_MATRIX, 4))
         {

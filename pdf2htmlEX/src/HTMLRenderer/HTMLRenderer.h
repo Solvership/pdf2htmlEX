@@ -72,6 +72,7 @@
 
 #include "util/const.h"
 #include "util/misc.h"
+#include "util/poppler_compat.h"
 
 
 namespace pdf2htmlEX {
@@ -110,7 +111,7 @@ struct HTMLRenderer : OutputDev
     // box is the crop box?
     virtual bool needClipToCropBox() { return true; }
 
-    virtual void setDefaultCTM(const double *ctm);
+    virtual void setDefaultCTM(DefaultCTMArg ctm) override;
 
     // Start a page.
     virtual void startPage(int pageNum, GfxState *state, XRef * xref);
@@ -157,7 +158,7 @@ struct HTMLRenderer : OutputDev
     virtual void eoClip(GfxState * state);
     virtual void clipToStrokePath(GfxState * state);
     
-    virtual void drawString(GfxState * state, const GooString * s);
+    virtual void drawString(GfxState * state, DrawStringArg s) override;
 
     virtual void drawImage(GfxState * state, Object * ref, Stream * str,
                  int width, int height, GfxImageColorMap * colorMap,
@@ -177,18 +178,18 @@ struct HTMLRenderer : OutputDev
     virtual void eoFill(GfxState *state);
     virtual bool axialShadedFill(GfxState *state, GfxAxialShading *shading, double tMin, double tMax);
 
-  virtual void beginTransparencyGroup(GfxState * /*state*/, const double * /*bbox*/,
+  virtual void beginTransparencyGroup(GfxState * /*state*/, TransparencyBBoxArg /*bbox*/,
                                       GfxColorSpace * /*blendingColorSpace*/,
                                       bool /*isolated*/, bool /*knockout*/,
-                                      bool /*forSoftMask*/);
-  virtual void endTransparencyGroup(GfxState * /*state*/);
+                                      bool /*forSoftMask*/) override;
+  virtual void endTransparencyGroup(GfxState * /*state*/) override;
 
 
     virtual void processLink(AnnotLink * al);
 
     // marked content (tagged PDF), used by the semantic layer
-    virtual void beginMarkedContent(const char * name, Dict * properties);
-    virtual void endMarkedContent(GfxState * state);
+    virtual void beginMarkedContent(MarkedContentNameArg name, Dict * properties) override;
+    virtual void endMarkedContent(GfxState * state) override;
 
     /*
      * Covered text handling.

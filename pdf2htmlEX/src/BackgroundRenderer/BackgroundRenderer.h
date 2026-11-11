@@ -12,6 +12,8 @@
 #include <string>
 #include <memory>
 
+#include "util/poppler_compat.h"
+
 class PDFDoc;
 class GfxState;
 class OutputDev;

@@ -57,9 +57,9 @@ void HTMLRenderer::drawImage(GfxState * state, Object * ref, Stream * str,
     close_line();
 
     double ctm[6];
-    memcpy(ctm, state->getCTM(), sizeof(ctm));
+    memcpy(ctm, dptr(state->getCTM()), sizeof(ctm));
     ctm[4] = ctm[5] = 0.0;
-    html_fout << format("<img class=\"i t%2%\" style=\"left:%3%px;bottom:%4%px;width:%5%px;height:%6%px;\" src=\"i%|1$x|.png\" />") % image_count % install_transform_matrix(ctm) % state->getCurX() % state->getCurY() % width % height << endl;
+    html_fout << format("<img class=\"i t%2%\" style=\"left:%3%px;bottom:%4%px;width:%5%px;height:%6%px;\" src=\"i%|1$x|.png\" />") % image_count % install_transform_matrix(ctm) % cur_text_x(state) % cur_text_y(state) % width % height << endl;
 
 
     ++ image_count;

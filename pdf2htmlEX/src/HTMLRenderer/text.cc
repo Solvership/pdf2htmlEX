@@ -23,9 +23,9 @@ using std::none_of;
 using std::cerr;
 using std::endl;
 
-void HTMLRenderer::drawString(GfxState * state, const GooString * s)
+void HTMLRenderer::drawString(GfxState * state, DrawStringArg s)
 {
-    if(s->getLength() == 0)
+    if(str_of(s).size() == 0)
         return;
 
     auto font = state->getFont();
@@ -41,7 +41,7 @@ void HTMLRenderer::drawString(GfxState * state, const GooString * s)
 
 
     if(state->getFont()
-        && ( (state->getFont()->getWMode())
+        && ( font_is_vertical(state->getFont().get())
             || ((state->getFont()->getType() == fontType3) && (!param.process_type3))
             || (state->getRender() >= 4)
            )
@@ -58,8 +58,8 @@ void HTMLRenderer::drawString(GfxState * state, const GooString * s)
 
     // Now ready to output
     // get the unicodes
-    const char *p = (s->toStr()).c_str();
-    int len = s->getLength();
+    const char *p = str_of(s).c_str();
+    int len = str_of(s).size();
 
     //accumulated displacement of chars in this string, in text object space
     double dx = 0;

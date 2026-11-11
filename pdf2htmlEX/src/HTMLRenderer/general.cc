@@ -214,9 +214,9 @@ void HTMLRenderer::process(PDFDoc *doc)
         cerr << endl;
 }
 
-void HTMLRenderer::setDefaultCTM(const double *ctm)
+void HTMLRenderer::setDefaultCTM(DefaultCTMArg ctm)
 {
-    memcpy(default_ctm, ctm, sizeof(default_ctm));
+    memcpy(default_ctm, dptr(ctm), sizeof(default_ctm));
 }
 
 void HTMLRenderer::startPage(int pageNum, GfxState *state, XRef * xref)

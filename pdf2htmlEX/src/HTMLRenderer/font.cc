@@ -16,6 +16,9 @@
 #include <GlobalParams.h>
 #include <fofi/FoFiTrueType.h>
 #include <CharCodeToUnicode.h>
+#include <goo/gmem.h>
+#include <vector>
+#include <type_traits>
 
 #include "Param.h"
 #include "HTMLRenderer.h"
@@ -41,6 +44,79 @@
 #endif
 
 namespace pdf2htmlEX {
+
+/*
+ * Poppler API differences (24.x vs. >= 25.x), resolved at compile time
+ */
+template <class F>
+static unsigned long compat_glyph_index(F * f, CharCode code)
+{
+    if constexpr (requires { f->getGlyph(code, (const Unicode *)nullptr, 0); })
+        return f->getGlyph(code, nullptr, 0);
+    else
+    {
+        auto g = f->getGlyph(code);
+        return g ? *g : 0;
+    }
+}
+
+// Stream::reset() became [[nodiscard]] bool Stream::rewind()
+template <class S>
+static bool compat_rewind(S * str)
+{
+    if constexpr (requires { str->rewind(); })
+        return str->rewind();
+    else
+    {
+        str->reset();
+        return true;
+    }
+}
+
+// pointer to a GID table returned either as int* (owned elsewhere) or as std::vector<int>
+static inline const int * compat_data(const int * p) { return p; }
+static inline const int * compat_data(int * p) { return p; }
+static inline const int * compat_data(const std::vector<int> & v) { return v.empty() ? nullptr : v.data(); }
+
+// take ownership of a GID table: Poppler 24 returns gmallocn'd memory, later a vector
+static inline std::vector<int> compat_take_gid_map(int * p, int len)
+{
+    std::vector<int> v;
+    if (p)
+    {
+        v.assign(p, p + len);
+        gfree(p);
+    }
+    return v;
+}
+static inline std::vector<int> compat_take_gid_map(std::vector<int> && v, int /*len*/) { return std::move(v); }
+
+template <class F, class T>
+static std::vector<int> compat_cid_code_to_gid(F * font, T * fftt)
+{
+    if constexpr (requires (int len) { font->getCodeToGIDMap(fftt, &len); })
+    {
+        int len = 0;
+        int * p = font->getCodeToGIDMap(fftt, &len);
+        return compat_take_gid_map(p, len);
+    }
+    else
+        return font->getCodeToGIDMap(fftt);
+}
+
+// Poppler 24 expects the user to take a reference on the ToUnicode map, later versions do not count
+template <class C>
+static void compat_inc_ref(C * ctu)
+{
+    if constexpr (requires (std::remove_const_t<C> * m) { m->incRefCnt(); })
+        const_cast<std::remove_const_t<C> *>(ctu)->incRefCnt();
+}
+template <class C>
+static void compat_dec_ref(C * ctu)
+{
+    if constexpr (requires (std::remove_const_t<C> * m) { m->decRefCnt(); })
+        const_cast<std::remove_const_t<C> *>(ctu)->decRefCnt();
+}
 
 using std::min;
 using std::unordered_set;
@@ -110,7 +186,7 @@ string HTMLRenderer::dump_embedded_font (GfxFont * font, FontInfo & info)
         obj = dict->lookup("FontFile3");
         if(obj.isStream())
         {
-            obj1 = obj.streamGetDict()->lookup("Subtype");
+            obj1 = obj.getStream()->getDict()->lookup("Subtype");
             if(obj1.isName())
             {
                 subtype = obj1.getName();
@@ -158,7 +234,8 @@ string HTMLRenderer::dump_embedded_font (GfxFont * font, FontInfo & info)
             throw 0;
         }
 
-        obj.streamReset();
+        if(!compat_rewind(obj.getStream()))
+            throw 0;
 
         filepath = (char*)str_fmt("%s/f%llx%s", param.tmp_dir.c_str(), fn_id, suffix.c_str());
         tmp_files.add(filepath);
@@ -169,11 +246,11 @@ string HTMLRenderer::dump_embedded_font (GfxFont * font, FontInfo & info)
 
         char buf[1024];
         int len;
-        while((len = obj.streamGetChars(1024, (unsigned char*)buf)) > 0)
+        while((len = obj.getStream()->doGetChars(1024, (unsigned char*)buf)) > 0)
         {
             outf.write(buf, len);
         }
-        obj.streamClose();
+        obj.getStream()->close();
     }
     catch(int) 
     {
@@ -205,8 +282,8 @@ string HTMLRenderer::dump_type3_font (GfxFont * font, FontInfo & info)
     auto used_map = preprocessor.get_code_map(hash_ref(font->getID()));
 
     //calculate transformed metrics
-    const double * font_bbox = font->getFontBBox();
-    const double * font_matrix = font->getFontMatrix();
+    const double * font_bbox = dptr(font->getFontBBox());
+    const double * font_matrix = dptr(font->getFontMatrix());
     double transformed_bbox[4];
     memcpy(transformed_bbox, font_bbox, 4 * sizeof(double));
     /*
@@ -266,7 +343,7 @@ string HTMLRenderer::dump_type3_font (GfxFont * font, FontInfo & info)
             cairo_set_font_matrix(cr, &m1);
 
             cairo_glyph_t glyph;
-            glyph.index = cur_font->getGlyph(code, nullptr, 0);
+            glyph.index = compat_glyph_index(cur_font.get(), code);
             glyph.x = 0;
             glyph.y = GLYPH_DUMP_EM_SIZE;
             cairo_show_glyphs(cr, &glyph, 1);
@@ -403,8 +480,9 @@ void HTMLRenderer::embed_font(const string & filepath, GfxFont * font, FontInfo 
         ofstream((char*)fn, ofstream::binary) << ifstream(filepath).rdbuf();
     }
 
-    int * code2GID = nullptr;
+    const int * code2GID = nullptr;
     int code2GID_len = 0;
+    std::vector<int> code2GID_storage; // owns the table when it is not owned by the font
     int maxcode = 0;
 
     Gfx8BitFont * font_8bit = nullptr;
@@ -486,9 +564,10 @@ void HTMLRenderer::embed_font(const string & filepath, GfxFont * font, FontInfo 
             else
             {
                 ffw_reencode_glyph_order();
-                if(std::unique_ptr<FoFiTrueType> fftt = FoFiTrueType::load((char*)filepath.c_str()))
+                if(std::unique_ptr<FoFiTrueType> fftt = FoFiTrueType::load(filepath.c_str(), 0))
                 {
-                    code2GID = font_8bit->getCodeToGIDMap(fftt.get());
+                    code2GID_storage = compat_take_gid_map(font_8bit->getCodeToGIDMap(fftt.get()), 256);
+                    code2GID = code2GID_storage.data();
                     code2GID_len = 256;
                 }
             }
@@ -544,7 +623,7 @@ void HTMLRenderer::embed_font(const string & filepath, GfxFont * font, FontInfo 
 
             // To locate CID2GID for the font
             // as in CairoFontEngine.cc
-            if((code2GID = _font->getCIDToGID()))
+            if((code2GID = compat_data(_font->getCIDToGID())))
             {
                 // use the mapping stored in _font
                 code2GID_len = _font->getCIDToGIDLen();
@@ -552,9 +631,11 @@ void HTMLRenderer::embed_font(const string & filepath, GfxFont * font, FontInfo 
             else
             {
                 // use the mapping stored in the file
-                if(std::unique_ptr<FoFiTrueType> fftt = FoFiTrueType::load((char*)filepath.c_str()))
+                if(std::unique_ptr<FoFiTrueType> fftt = FoFiTrueType::load(filepath.c_str(), 0))
                 {
-                    code2GID = _font->getCodeToGIDMap(fftt.get(), &code2GID_len);
+                    code2GID_storage = compat_cid_code_to_gid(_font, fftt.get());
+                    code2GID = code2GID_storage.empty() ? nullptr : code2GID_storage.data();
+                    code2GID_len = code2GID_storage.size();
                 }
             }
         }
@@ -596,7 +677,7 @@ void HTMLRenderer::embed_font(const string & filepath, GfxFont * font, FontInfo 
         // NOTE: Poppler has changed its effective ABI
         // in now expects the USER to increment any ref counters
         assert(ctu);
-        ((CharCodeToUnicode *)ctu)->incRefCnt();
+        compat_inc_ref(ctu);
 
         std::fill(cur_mapping.begin(), cur_mapping.end(), -1);
         std::fill(width_list.begin(), width_list.end(), -1);
@@ -762,7 +843,7 @@ void HTMLRenderer::embed_font(const string & filepath, GfxFont * font, FontInfo 
         }
 
         if(ctu)
-            ((CharCodeToUnicode *)ctu)->decRefCnt();
+            compat_dec_ref(ctu);
     }
 
     /*
@@ -897,7 +978,7 @@ const FontInfo * HTMLRenderer::install_font(GfxFont * font)
 #endif
         return &new_font_info;
     }
-    if(font->getWMode()) {
+    if(font_is_vertical(font)) {
         cerr << "Writing mode is unsupported and will be rendered as Image" << endl;
         export_remote_default_font(new_fn_id);
         return &new_font_info;

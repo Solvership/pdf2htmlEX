@@ -27,6 +27,16 @@ find_package(PkgConfig)
 set(POPPLER_DIR "${CMAKE_SOURCE_DIR}/../poppler" CACHE PATH "Poppler source tree containing build/")
 set(FONTFORGE_DIR "${CMAKE_SOURCE_DIR}/../fontforge" CACHE PATH "FontForge source tree containing build/")
 
+# Poppler version as a number (e.g. 2611 for 26.11), for src/util/poppler_compat.h
+file(STRINGS ${POPPLER_DIR}/CMakeLists.txt P2H_POPPLER_MAJOR REGEX "set\\(POPPLER_MAJOR_VERSION")
+file(STRINGS ${POPPLER_DIR}/CMakeLists.txt P2H_POPPLER_MINOR REGEX "set\\(POPPLER_MINOR_VERSION_STRING")
+string(REGEX MATCH "[0-9]+" P2H_POPPLER_MAJOR "${P2H_POPPLER_MAJOR}")
+string(REGEX MATCH "[0-9]+" P2H_POPPLER_MINOR "${P2H_POPPLER_MINOR}")
+string(REGEX REPLACE "^0+([0-9])" "\\1" P2H_POPPLER_MINOR "${P2H_POPPLER_MINOR}")
+math(EXPR P2H_POPPLER_VERSION "${P2H_POPPLER_MAJOR} * 100 + ${P2H_POPPLER_MINOR}")
+add_definitions(-DP2H_POPPLER_VERSION=${P2H_POPPLER_VERSION})
+message("-- Poppler version: ${P2H_POPPLER_VERSION}")
+
 
 # SINCE we have a very intimate relationship with a particular version of 
 # poppler... we explicitly describe the poppler include and library 
@@ -82,6 +92,11 @@ include_directories(
 )
 #
 include_directories(${FONTFORGE_INCLUDE_DIRS})
+# newer FontForge headers include <gio/gio.h>
+pkg_check_modules(P2H_GIO gio-2.0)
+if(P2H_GIO_FOUND)
+    include_directories(${P2H_GIO_INCLUDE_DIRS})
+endif()
 link_directories(${FONTFORGE_LIBRARY_DIRS})
 set(FONTFORGE_LIBRARIES ${FONTFORGE_LIBRARIES}
   ${FONTFORGE_DIR}/build/lib/libfontforge.a
@@ -126,10 +141,22 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Woverloaded-virtual")
 
+# newer static FontForge / Poppler builds may need brotli (WOFF2) explicitly
+find_library(P2H_BROTLIDEC brotlidec)
+if(P2H_BROTLIDEC)
+    set(PDF2HTMLEX_LIBS ${PDF2HTMLEX_LIBS} ${P2H_BROTLIDEC})
+endif()
+# Poppler >= 25.x subsets fonts with HarfBuzz
+if(P2H_POPPLER_VERSION GREATER_EQUAL 2500)
+    pkg_check_modules(P2H_HB_SUBSET REQUIRED harfbuzz-subset harfbuzz)
+    set(PDF2HTMLEX_LIBS ${PDF2HTMLEX_LIBS} ${P2H_HB_SUBSET_LIBRARIES})
+endif()
+
 set(CMAKE_THREAD_PREFER_PTHREAD ON)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 set(PDF2HTMLEX_LIBS ${PDF2HTMLEX_LIBS} Threads::Threads)
+
 # Poppler-24.03.0 requires CXX20, Poppler >= 25.x requires CXX23
 file(STRINGS ${POPPLER_DIR}/CMakeLists.txt POPPLER_CXX_STD REGEX "set\\(CMAKE_CXX_STANDARD [0-9]+\\)")
 if(POPPLER_CXX_STD MATCHES "23")

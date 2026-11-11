@@ -6,6 +6,8 @@
  */
 
 #include <poppler-config.h>
+#include <type_traits>
+#include <memory>
 
 #include "HTMLRenderer/HTMLRenderer.h"
 #include "Param.h"
@@ -49,14 +51,53 @@ std::unique_ptr<BackgroundRenderer> BackgroundRenderer::getFallbackBackgroundRen
     return nullptr;
 }
 
+// Poppler 24: raw pointers, Poppler >= 25: unique_ptr / references
+template <class S>
+static void set_color_spaces_rgb(S * st)
+{
+    if constexpr (requires { st->setFillColorSpace(std::make_unique<GfxDeviceRGBColorSpace>()); })
+    {
+        st->setFillColorSpace(std::make_unique<GfxDeviceRGBColorSpace>());
+        st->setStrokeColorSpace(std::make_unique<GfxDeviceRGBColorSpace>());
+    }
+    else
+    {
+        st->setFillColorSpace(new GfxDeviceRGBColorSpace());
+        st->setStrokeColorSpace(new GfxDeviceRGBColorSpace());
+    }
+}
+
+template <class G>
+static G * new_gfx_state(double hdpi, double vdpi, const PDFRectangle & rect, int rotate, bool upside_down)
+{
+    if constexpr (std::is_constructible_v<G, double, double, const PDFRectangle *, int, bool>)
+        return new G(hdpi, vdpi, &rect, rotate, upside_down);
+    else
+        return new G(hdpi, vdpi, rect, rotate, upside_down);
+}
+
+template <class S>
+static void set_fill_stroke_color(S * st, const GfxColor & f, const GfxColor & s)
+{
+    if constexpr (requires { st->setFillColor(f); })
+    {
+        st->setFillColor(f);
+        st->setStrokeColor(s);
+    }
+    else
+    {
+        st->setFillColor(&f);
+        st->setStrokeColor(&s);
+    }
+}
+
 void BackgroundRenderer::proof_begin_text_object(GfxState *state, OutputDev * dev)
 {
     if (!proof_state)
     {
         PDFRectangle rect(0, 0, state->getPageWidth(), state->getPageHeight());
-        proof_state.reset(new GfxState(state->getHDPI(), state->getVDPI(), &rect, state->getRotate(), dev->upsideDown()));
-        proof_state->setFillColorSpace(new GfxDeviceRGBColorSpace());
-        proof_state->setStrokeColorSpace(new GfxDeviceRGBColorSpace());
+        proof_state.reset(new_gfx_state<GfxState>(state->getHDPI(), state->getVDPI(), rect, state->getRotate(), dev->upsideDown()));
+        set_color_spaces_rgb(proof_state.get());
     }
 
     // Save original render mode in proof_state, and restore in proof_end_text_object()
@@ -72,7 +113,7 @@ void BackgroundRenderer::proof_begin_string(GfxState *state, OutputDev * dev)
         return;
 
     double lx = state->getFontSize() / 70, ly = lx;
-    tm_transform(state->getTextMat(), lx, ly, true);
+    tm_transform(dptr(state->getTextMat()), lx, ly, true);
     proof_state->setLineWidth(sqrt(lx * lx + ly * ly));
 
     static const Color red(1, 0, 0), green(0, 1, 0), blue(0, 0, 1), yellow(1, 1, 0), white(1, 1, 1);
@@ -96,8 +137,7 @@ void BackgroundRenderer::proof_begin_string(GfxState *state, OutputDev * dev)
     GfxColor gfc, gsc;
     pfc->get_gfx_color(gfc);
     psc->get_gfx_color(gsc);
-    proof_state->setFillColor(&gfc);
-    proof_state->setStrokeColor(&gsc);
+    set_fill_stroke_color(proof_state.get(), gfc, gsc);
 
     if (state->getFillColorSpace()->getMode() != csDeviceRGB)
         dev->updateFillColorSpace(proof_state.get());

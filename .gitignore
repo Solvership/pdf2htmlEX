@@ -32,3 +32,4 @@ pdf2htmlEX/test/geckodriver.log
 *.swp
 poppler-[0-9]*
 fontforge-[0-9]*
+pdf2htmlEX/build-*

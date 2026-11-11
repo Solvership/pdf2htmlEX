@@ -28,7 +28,7 @@ static bool is_private_use(const std::string & s)
     return false;
 }
 
-void HTMLRenderer::beginMarkedContent(const char * name, Dict * properties)
+void HTMLRenderer::beginMarkedContent(MarkedContentNameArg name, Dict * properties)
 {
     if (!param.semantic_tables)
         return;
