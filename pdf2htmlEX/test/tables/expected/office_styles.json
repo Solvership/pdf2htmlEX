@@ -1,0 +1,56 @@
+{
+ "tables": [
+  {
+   "page": 1,
+   "source": "hrules",
+   "rows": 4,
+   "cols": 3,
+   "cells": [
+    [
+     "Datum",
+     "Opis",
+     "kWh"
+    ],
+    [
+     "01.01.2026.",
+     "Očitanje brojila na početku obračunskog razdoblja za kupca",
+     "1200"
+    ],
+    [
+     "01.02.2026.",
+     "Očitanje",
+     "1350"
+    ],
+    [
+     "01.03.2026.",
+     "Procjena potrošnje zbog nedostupnog brojila",
+     "1410"
+    ]
+   ]
+  },
+  {
+   "page": 1,
+   "source": "hrules",
+   "rows": 3,
+   "cols": 2,
+   "cells": [
+    [
+     "Stavka",
+     "Iznos"
+    ],
+    [
+     "Energija i mrežarina za razdoblje koje obuhvaća prva tri mjeseca",
+     "100,00"
+    ],
+    [
+     "PDV",
+     "13,00"
+    ]
+   ]
+  }
+ ],
+ "paragraphs": [
+  "Tablica sa sjenčanjem redaka:",
+  "Tablica s vodoravnim linijama:"
+ ]
+}

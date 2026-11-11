@@ -11,6 +11,9 @@ for f in *.tex; do
 done
 rm -f *.aux *.log
 TAGGED='pdf:writer_pdf_Export:{"UseTaggedPDF":{"type":"boolean","value":true}}'
+for f in office_*.html; do
+    soffice -env:UserInstallation=file:///tmp/lo-profile --headless --infilter="HTML (StarWriter)" --convert-to pdf --outdir "$OUT" "$f" >/dev/null
+done
 for f in tagged_*.html; do
     soffice -env:UserInstallation=file:///tmp/lo-profile --headless --infilter="HTML (StarWriter)" --convert-to "$TAGGED" --outdir "$OUT" "$f" >/dev/null
 done

@@ -1,0 +1,21 @@
+{
+ "tables": [
+  {
+   "page": 1,
+   "source": "ruled",
+   "rows": 2,
+   "cols": 2,
+   "cells": [
+    [
+     "ifra",
+     "Opis"
+    ],
+    [
+     "T3",
+     "Tekst u Type 3 fontu koji se prelama u dva retka tablice"
+    ]
+   ]
+  }
+ ],
+ "paragraphs": []
+}

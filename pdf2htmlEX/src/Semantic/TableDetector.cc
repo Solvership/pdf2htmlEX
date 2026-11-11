@@ -31,7 +31,7 @@ namespace {
 const double SNAP = 1.0;       // rules closer than this (pt) are on the same line
 const double TOL = 2.5;        // intersection / coverage tolerance (pt)
 const double MIN_CELL = 3.0;   // grid lines closer than this are merged (double rules)
-const double SEG_GAP_EM = 0.75; // horizontal gap separating cells, in em
+const double SEG_GAP_EM = 0.55; // horizontal gap separating cells, in em (word gaps are ~0.35)
 
 struct UnionFind
 {
@@ -69,9 +69,11 @@ vector<Rule> merge_rules(const vector<Rule> & rules, bool horizontal)
             iv.emplace_back(rs[k].lo(), rs[k].hi());
         std::sort(iv.begin(), iv.end());
         double lo = iv[0].first, hi = iv[0].second;
+        int kind = rs[i].kind;
         auto flush = [&]() {
             Rule r;
             r.horizontal = horizontal;
+            r.kind = kind;
             if (horizontal) { r.x0 = lo; r.x1 = hi; r.y0 = r.y1 = pos; }
             else { r.y0 = lo; r.y1 = hi; r.x0 = r.x1 = pos; }
             out.push_back(r);
@@ -279,30 +281,76 @@ void band_to_cells(const vector<LSeg> & segs, int row_offset, const vector<doubl
  * or empty on failure. Also rejects prose.
  */
 vector<double> find_columns(const PageInput & in, const vector<VLine> & lines, const Box & region,
-                            vector<vector<Segment>> & line_segs)
+                            vector<vector<Segment>> & line_segs, const vector<double> & bands = {})
 {
     line_segs.clear();
-    int multi = 0;
     for (const auto & l : lines)
-    {
         line_segs.push_back(split_segments(in.chars, l, SEG_GAP_EM));
-        if (line_segs.back().size() >= 2)
-            ++multi;
+
+    /*
+     * Units whose segments are side by side: text lines, or - between
+     * horizontal rules - whole bands (each band is one table row, its cells
+     * may be vertically centered on different text lines).
+     */
+    vector<vector<const Segment *>> units;
+    vector<double> unit_em;
+    if (bands.size() >= 2)
+    {
+        units.resize(bands.size() - 1);
+        unit_em.assign(bands.size() - 1, 0);
+        for (size_t i = 0; i < lines.size(); ++i)
+        {
+            int b = locate(bands, lines[i].box.cy());
+            if (b < 0)
+                continue;
+            for (const auto & sg : line_segs[i])
+                units[b].push_back(&sg);
+            unit_em[b] = max(unit_em[b], lines[i].em);
+        }
     }
+    else
+    {
+        for (size_t i = 0; i < lines.size(); ++i)
+        {
+            units.emplace_back();
+            for (const auto & sg : line_segs[i])
+                units.back().push_back(&sg);
+            unit_em.push_back(lines[i].em);
+        }
+    }
+
+    // a unit is multi-column if its segments do not overlap horizontally
+    auto multi_col = [](const vector<const Segment *> & u) {
+        if (u.size() < 2)
+            return false;
+        vector<std::pair<double, double>> v;
+        for (auto * sg : u)
+            v.emplace_back(sg->box.x0, sg->box.x1);
+        std::sort(v.begin(), v.end());
+        for (size_t k = 1; k < v.size(); ++k)
+            if (v[k].first > v[k - 1].second)
+                return true;
+        return false;
+    };
+
+    int multi = 0;
+    for (const auto & u : units)
+        if (multi_col(u))
+            ++multi;
     if (multi < 2)
         return {};
 
-    // coverage of the segments of multi-segment lines
+    // coverage of the segments of multi-column units
     vector<std::pair<double, double>> iv;
     double em_sum = 0;
     int em_cnt = 0;
-    for (size_t i = 0; i < lines.size(); ++i)
+    for (size_t i = 0; i < units.size(); ++i)
     {
-        if (line_segs[i].size() < 2)
+        if (!multi_col(units[i]))
             continue;
-        for (const auto & s : line_segs[i])
-            iv.emplace_back(s.box.x0, s.box.x1);
-        em_sum += lines[i].em;
+        for (auto * sg : units[i])
+            iv.emplace_back(sg->box.x0, sg->box.x1);
+        em_sum += unit_em[i];
         ++em_cnt;
     }
     double em = em_cnt ? max(em_sum / em_cnt, 1.0) : 10;
@@ -661,7 +709,9 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
     if (H.size() < 2)
         return tables;
 
-    // group rules with the same horizontal extent
+    // group rules with the same horizontal extent and the same style (stroked
+    // lines vs. edges of filled boxes): two tables of the same width drawn in
+    // different styles must not be merged
     vector<bool> grouped(H.size(), false);
     vector<vector<int>> groups;
     for (size_t i = 0; i < H.size(); ++i)
@@ -671,17 +721,34 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
         vector<int> g{(int)i};
         grouped[i] = true;
         for (size_t j = i + 1; j < H.size(); ++j)
-            if (!grouped[j] && abs(H[j].x0 - H[i].x0) <= 4 && abs(H[j].x1 - H[i].x1) <= 4)
+            if (!grouped[j] && H[j].kind == H[i].kind && abs(H[j].x0 - H[i].x0) <= 4 && abs(H[j].x1 - H[i].x1) <= 4)
             {
                 g.push_back(j);
                 grouped[j] = true;
             }
-        if (g.size() >= 2)
-        {
-            std::sort(g.begin(), g.end(), [&](int a, int b) { return H[a].y0 < H[b].y0; });
-            groups.push_back(g);
-        }
+        std::sort(g.begin(), g.end(), [&](int a, int b) { return H[a].y0 < H[b].y0; });
+        groups.push_back(g);
     }
+    // a shaded header directly followed by stroked rules (or vice versa) is one table
+    for (bool merged = true; merged; )
+    {
+        merged = false;
+        for (size_t a = 0; a < groups.size() && !merged; ++a)
+            for (size_t b = 0; b < groups.size() && !merged; ++b)
+            {
+                if (a == b)
+                    continue;
+                const Rule & last = H[groups[a].back()];
+                const Rule & first = H[groups[b].front()];
+                if (abs(last.y0 - first.y0) <= 2 && abs(last.x0 - first.x0) <= 4 && abs(last.x1 - first.x1) <= 4)
+                {
+                    groups[a].insert(groups[a].end(), groups[b].begin() + 1, groups[b].end());
+                    groups.erase(groups.begin() + b);
+                    merged = true;
+                }
+            }
+    }
+    groups.erase(std::remove_if(groups.begin(), groups.end(), [](const vector<int> & g) { return g.size() < 2; }), groups.end());
 
     auto chars_in = [&](const Box & b) {
         vector<int> v;
@@ -713,11 +780,15 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                 }
                 auto lines = build_visual_lines(in.chars, ids);
                 vector<vector<Segment>> segs;
-                auto bounds = find_columns(in, lines, region, segs);
+                vector<double> bands;
+                for (size_t k = i; k <= j; ++k)
+                    bands.push_back(H[g[k]].y0);
+                auto bounds = find_columns(in, lines, region, segs, bands);
                 if (bounds.empty())
                 {
-                    // a single band (e.g. only the header) may be too small to find columns
-                    if (best_j == 0 && lines.size() <= 2)
+                    // the first band(s) (e.g. only the header) may be too small to find columns:
+                    // keep extending until something is found, then stop at the first failure
+                    if (best_j == 0)
                     {
                         ++j;
                         continue;
@@ -740,6 +811,39 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
             vector<double> rule_ys;
             for (size_t k = i; k <= best_j; ++k)
                 rule_ys.push_back(H[g[k]].y0);
+
+            // a header row right above the first rule (tables with rules below each row only)
+            {
+                double top = rule_ys.front();
+                double em = 0;
+                for (const auto & l : best_lines)
+                    em = max(em, l.em);
+                em = max(em, 6.0);
+                Box above(H[g[i]].x0 - 2, top - 1.8 * em, H[g[i]].x1 + 2, top);
+                auto ids = chars_in(above);
+                bool header_ok = false;
+                if (!ids.empty())
+                {
+                    auto hl = build_visual_lines(in.chars, ids);
+                    if (hl.size() == 1 && hl[0].box.y0 >= above.y0)
+                    {
+                        auto segs = split_segments(in.chars, hl[0], SEG_GAP_EM);
+                        // every segment must lie within one column
+                        header_ok = segs.size() >= 2;
+                        for (const auto & sg : segs)
+                        {
+                            int c0 = locate(best_bounds, sg.box.x0 + 0.1), c1 = locate(best_bounds, sg.box.x1 - 0.1);
+                            if (c0 < 0 || c0 != c1)
+                                header_ok = false;
+                        }
+                        if (header_ok)
+                        {
+                            best_segs.insert(best_segs.begin(), segs);
+                            rule_ys.insert(rule_ys.begin(), hl[0].box.y0 - 1);
+                        }
+                    }
+                }
+            }
             auto lsegs = make_lsegs(in, best_segs, best_bounds);
 
             Table t;

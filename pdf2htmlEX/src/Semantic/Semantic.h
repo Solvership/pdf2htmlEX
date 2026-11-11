@@ -71,6 +71,7 @@ struct Rule
 {
     double x0, y0, x1, y1;
     bool horizontal;
+    int kind = 0;          // 0: stroked line, 1: edge of a filled box
     double pos() const { return horizontal ? y0 : x0; }
     double lo() const { return horizontal ? x0 : y0; }
     double hi() const { return horizontal ? x1 : y1; }

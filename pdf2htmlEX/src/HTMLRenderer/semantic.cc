@@ -13,6 +13,8 @@
 namespace pdf2htmlEX {
 
 using std::vector;
+using std::cerr;
+using std::endl;
 
 // true if the UTF-8 string is a single code point of a private use area
 static bool is_private_use(const std::string & s)
@@ -165,16 +167,33 @@ void HTMLRenderer::analyze_page_semantics(void)
             else
             {
                 // filled box (e.g. cell background): its edges
-                in.rules.push_back({x0, y0, x1, y0, true});
-                in.rules.push_back({x0, y1, x1, y1, true});
-                in.rules.push_back({x0, y0, x0, y1, false});
-                in.rules.push_back({x1, y0, x1, y1, false});
+                in.rules.push_back({x0, y0, x1, y0, true, 1});
+                in.rules.push_back({x0, y1, x1, y1, true, 1});
+                in.rules.push_back({x0, y0, x0, y1, false, 1});
+                in.rules.push_back({x1, y0, x1, y1, false, 1});
             }
         }
     }
 
     if (structure_mapper)
         structure_mapper->fill(pageNum, in);
+
+    if (param.debug)
+    {
+        cerr << "semantic: page " << pageNum << ": " << in.chars.size() << " chars, " << in.rules.size() << " rules" << endl;
+        for (const auto & r : in.rules)
+            cerr << "  rule " << (r.horizontal ? "H" : "V") << " " << r.x0 << "," << r.y0 << " - " << r.x1 << "," << r.y1 << endl;
+        vector<int> all;
+        for (const auto & c : in.chars)
+            all.push_back(c.index);
+        for (const auto & l : semantic::build_visual_lines(in.chars, all))
+        {
+            cerr << "  line y=" << l.box.y0 << ".." << l.box.y1 << " em=" << l.em << ":";
+            for (const auto & sg : semantic::split_segments(in.chars, l, 0.3))
+                cerr << " [" << sg.box.x0 << "-" << sg.box.x1 << " '" << semantic::chars_text(in.chars, sg.chars) << "']";
+            cerr << endl;
+        }
+    }
 
     cur_semantic = semantic::analyze_page(in, semantic::Options::from_param(param));
     cur_semantic_tags.char_group = &cur_semantic.char_group;
