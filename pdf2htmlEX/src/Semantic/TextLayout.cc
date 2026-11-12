@@ -196,6 +196,14 @@ string chars_text(const vector<Char> & chars, const vector<int> & seq)
                 space = c.space_before;
             else
                 space = c.space_before || gap;
+            // a space glyph between them in the same HTML line that is not part of the sequence
+            if (!space && prev->line == c.line && c.line >= 0 && c.index > prev->index + 1 && c.index - prev->index < 64)
+                for (int k = prev->index + 1; k < c.index; ++k)
+                    if (k >= 0 && k < (int)chars.size() && chars[k].line == c.line && chars[k].is_space())
+                    {
+                        space = true;
+                        break;
+                    }
             if (space)
                 out += ' ';
         }
