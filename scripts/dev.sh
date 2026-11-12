@@ -9,6 +9,9 @@
 #   scripts/dev.sh test       run the semantic table tests
 #   scripts/dev.sh shell      interactive shell in the container
 #   scripts/dev.sh exec CMD   run an arbitrary command in the container
+#   scripts/dev.sh runtime-image [TAG]
+#                             docker image with the built binary (docker/Dockerfile.runtime),
+#                             default tag pdf2htmlex:semantic-<git short sha>
 #
 # VARIANT selects the tool chain / library versions:
 #   VARIANT=bookworm (default)  Debian 12, Poppler 24.06.1, FontForge 20230101
@@ -114,8 +117,26 @@ case "$1" in
         shift
         in_docker "$*"
         ;;
+    runtime-image)
+        TAG="${2:-pdf2htmlex:semantic-$(git -C "$REPO" rev-parse --short HEAD)}"
+        [ "$VARIANT" = bookworm ] || echo "note: VARIANT=$VARIANT, the runtime image needs BASE=debian:$VARIANT-slim" >&2
+        [ -x "$REPO/$BUILD_DIR/pdf2htmlEX" ] || { echo "no binary, run: scripts/dev.sh build" >&2; exit 1; }
+        CTX="$(mktemp -d "$REPO/.runtime-image.XXXXXX")"
+        trap 'rm -rf "$CTX"' EXIT
+        cp "$REPO/$BUILD_DIR/pdf2htmlEX" "$CTX/"
+        cp -r "$REPO/$BUILD_DIR/install/usr/local/share/pdf2htmlEX" "$CTX/share"
+        docker build --build-arg BASE="debian:$VARIANT-slim" -t "$TAG" -f "$REPO/docker/Dockerfile.runtime" "$CTX"
+        # smoke test: convert one of the table test documents with the semantic layer
+        SMOKE="$(mktemp -d "$REPO/.runtime-smoke.XXXXXX")"
+        trap 'rm -rf "$CTX" "$SMOKE"' EXIT
+        cp "$REPO/pdf2htmlEX/test/tables/financial.pdf" "$SMOKE/"
+        docker run --rm --user "$(id -u):$(id -g)" -v "$SMOKE:/pdf" -w /pdf "$TAG" \
+            --semantic-tables 1 --semantic-output attrs,inline --quiet 1 financial.pdf
+        grep -q 'data-tbl=' "$SMOKE/financial.html" || { echo "smoke test failed: no data-tbl in the output" >&2; exit 1; }
+        echo "built $TAG (smoke test OK)"
+        ;;
     *)
-        sed -n '3,17p' "$0"
+        sed -n '3,20p' "$0"
         exit 1
         ;;
 esac

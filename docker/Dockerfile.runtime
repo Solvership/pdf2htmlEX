@@ -1,0 +1,32 @@
+# Runtime image with the pdf2htmlEX binary built from THIS source tree.
+#
+# It does not compile anything: the binary and the data directory come from
+# the dev build (scripts/dev.sh build). Poppler and FontForge are linked
+# statically, so only a handful of system libraries are needed at runtime.
+#
+# Build it with:  scripts/dev.sh runtime-image
+# (the script prepares a small build context with just the binary and the
+# data directory, so the large poppler/fontforge trees are not sent to docker)
+#
+# Usage:  docker run --rm -v "$PWD:/pdf" -w /pdf IMAGE [options] file.pdf
+
+ARG BASE=debian:bookworm-slim
+FROM ${BASE}
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libcairo2 libopenjp2-7 libpng16-16 libfontconfig1 libfreetype6 \
+        libglib2.0-0 libjpeg62-turbo libxml2 fontconfig \
+    && rm -rf /var/lib/apt/lists/*
+
+# fontconfig wants a writable cache directory (the container usually runs as a non-root user)
+ENV HOME=/tmp XDG_CACHE_HOME=/tmp/.cache
+
+COPY pdf2htmlEX /usr/local/bin/pdf2htmlEX
+COPY share/ /usr/local/share/pdf2htmlEX/
+
+# the default data dir compiled into the binary is /usr/local/share/pdf2htmlEX
+RUN pdf2htmlEX --version
+
+ENTRYPOINT ["pdf2htmlEX"]

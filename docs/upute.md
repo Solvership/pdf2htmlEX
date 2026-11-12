@@ -111,7 +111,26 @@ scripts/dev.sh run --preset semantic --dest-dir /work/.realpdf/rezultat /work/.r
 * Bez `--dest-dir` izlaz ide u korijen projekta. Mapa `.realpdf/` nije u gitu, pa je dobro mjesto i
   za ulaz i za izlaz.
 
-### 3.3 Bez Dockera
+### 3.3 Docker image za druge programe (produkcija)
+
+```bash
+scripts/dev.sh build                      # binarij mora biti kompajliran
+scripts/dev.sh runtime-image              # image pdf2htmlex:semantic-<git sha>
+scripts/dev.sh runtime-image moj/tag:1.0  # ili s vlastitim imenom
+```
+
+Image (`docker/Dockerfile.runtime`) sadrži samo kompajlirani binarij, njegovu podatkovnu mapu i
+nekoliko sistemskih biblioteka (Debian 12 slim, ~230 MB). Ulazna točka je `pdf2htmlEX`, kao u
+službenom imageu, pa ga programi koji su koristili službeni image mogu koristiti bez promjena:
+
+```bash
+docker run --rm -v "$PWD:/pdf" -w /pdf pdf2htmlex:semantic-abbf97f \
+    --semantic-tables 1 --semantic-output attrs,inline dokument.pdf
+```
+
+Naredba nakon builda pretvori `financial.pdf` iz testova i provjeri da izlaz ima `data-tbl`.
+
+### 3.4 Bez Dockera
 
 Binarna datoteka `pdf2htmlEX/build/pdf2htmlEX` kompajlirana je za Debian 12 i treba njegove
 sistemske biblioteke. Na ovom računalu izravno pokretanje ne radi (nedostaju `libjpeg.so.62` i
@@ -320,6 +339,7 @@ Sve su u `scripts/`. Python skripte se mogu pokrenuti u Dockeru preko
 | `test` | testovi semantičkog sloja (`pdf2htmlEX/test/tables/test_tables.py`) |
 | `shell` | interaktivni shell u kontejneru, u `/work` |
 | `exec NAREDBA…` | jedna naredba u kontejneru, npr. `scripts/dev.sh exec python3 scripts/check_tables.py …` |
+| `runtime-image [TAG]` | Docker image s kompajliranim binarijem za druge programe ([§ 3.3](#33-docker-image-za-druge-programe-produkcija)) |
 
 | Varijabla okoline | Značenje |
 |---|---|
