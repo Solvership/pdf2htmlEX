@@ -10,7 +10,8 @@ nepromijenjen, što je provjereno:
 
 * uz `--semantic-tables 0` (zadano) HTML je **bajt-identičan** originalu,
 * uz `--semantic-tables 1` render u Chromiumu je **pikselski identičan** originalu
-  (`scripts/visual_compare.py`, na 14 testnih PDF-ova).
+  (`scripts/visual_compare.py`, na testnim PDF-ovima i na 14 stranica s tablicama
+  stvarnog godišnjeg izvješća od 170 stranica).
 
 ## Brzi početak
 
@@ -59,14 +60,36 @@ mjerenjem (`scripts/fidelity_metric.py`, raster PDF-a naspram rendera HTML-a):
    pravokutnike i rubove osjenčanih ćelija, slažu se u mrežu. Prepoznaju se spojene ćelije
    (colspan/rowspan). **Ćelija s više redaka teksta ostaje jedna ćelija.**
 3. **hrules**: tablice sa samo vodoravnim linijama (booktabs, `border-bottom` po retku, zebra
-   sjenčanje). Stupci se određuju iz razmaka u tekstu, a retci iz linija i „sidrenog” stupca.
+   sjenčanje, financijski izvještaji). Stupci se određuju iz razmaka u tekstu, a retci iz linija
+   i „sidrenog” stupca. Pokriva i tipičan izgled financijskih izvještaja i bilješki:
+   * linije postoje samo ispod brojčanih stupaca: **nazivi redaka** lijevo od linija postaju prvi
+     stupac, a **brojevi bilješki** („Bilješka”) zaseban stupac;
+   * zaglavlje i prvi redovi **iznad prve linije** (kad linije odvajaju samo zbrojeve), uključujući
+     naslove stupaca u više redaka i naslove skupina preko više stupaca („Prihodi segmenta”);
+   * red s jedinicom („(u tisućama eura)”) i redovi zbrojeva bez naziva su zasebni redovi;
+   * dvije tablice iste širine razdvojene rečenicom („… kako slijedi:”) ili naslovom ostaju
+     dvije tablice.
 4. **stream** (samo uz `all`): tablice bez ikakvih linija, iz poravnanja teksta. Ovo je
    heuristika, pa je isključena dok je ne zatražite.
 
 **Pravilo sidrenog stupca:** novi red počinje kada prvi (lijevi) stupac s tekstom ima novi
 redak teksta i uz njega postoji tekst u barem još jednom stupcu. Redak teksta koji je sam u
-prvom stupcu tretira se kao nastavak prelomljenog teksta. Ovo se koristi samo tamo gdje linije
-ne razdvajaju retke.
+prvom stupcu nastavak je prelomljenog teksta, osim ako počinje **velikim slovom**: tada je to
+naslov odjeljka („Kratkotrajna imovina”) ili prvi redak naziva čiji su brojevi u zadnjem retku
+(sljedeći redak koji počinje malim slovom ga dovršava). Brojevi se ne prelamaju: broj ispod
+broja u istom stupcu uvijek je novi red. Ovo se koristi samo tamo gdje linije ne razdvajaju
+retke.
+
+**Što se ne smatra tablicom:**
+* **grafikoni**: stupci grafikona su obojeni pravokutnici i daju mrežu, ali ćelije su većinom
+  prazne; linije rešetke grafikona imaju oznake osi („400”, „300”) točno na svojoj visini;
+* **nevidljivi crteži**: bijele pozadine ćelija (izvoz iz Excela) i bijele linije na bijeloj
+  stranici. Bijela ploha uz obojenu (zebra tablica) se zadržava;
+* dijelovi crteža izvan clip-područja (npr. linije rešetke grafikona „ispod” teksta pokraj);
+* okvir oko dijela tablice (u ćeliji bi bilo više brojeva jedan ispod drugog).
+
+Okomiti (rotirani) tekst, npr. u zaglavljima, čita se u svom smjeru, a indeksi i eksponenti
+(„tCO₂e”) ostaju u svom retku.
 
 Tablice preko više stranica se povezuju (`continued_from`, `group`). Ponovljeno zaglavlje
 na sljedećoj stranici prepoznaje se kao `repeated_header`.
@@ -100,13 +123,26 @@ Retci istog odlomka spajaju se razmakom umjesto prijeloma retka.
 
 ## Ograničenja
 
+Isprobano na stvarnom dokumentu (godišnje izvješće, InDesign, 170 stranica, 85 tablica:
+mreže linija, zebra tablice, financijski izvještaji i bilješke, tablice preko stranica,
+rotirana zaglavlja, grafikoni). Preostala odstupanja:
+
+* Uzastopne tablice s istim stupcima i istim linijama (npr. tri male tablice jedna ispod druge,
+  svaka sa svojim naslovom i godinama) spajaju se u jednu, a naslovi postaju redovi.
+* Pravilo velikog slova: prelomljeni naziv čiji drugi redak počinje velikim slovom (osobno ime,
+  kratica) postaje dva reda.
+* Naslov stupca centriran iznad dva stupca bez linije (npr. „2025.” iznad „Brend | Goodwill”)
+  pripisuje se jednom stupcu.
+
 * **stream** detektor je heuristika. Testiran je i ne prepoznaje tablice u običnom tekstu
   ni u dvostupčanom prijelomu, ali na neobičnim rasporedima može pogriješiti.
 * Kod tablica bez linija između redaka, red u kojem je popunjen samo prvi stupac spaja se s
   prethodnim redom (posljedica pravila sidrenog stupca).
 * Ako PDF za glif nema podatak o Unicode znaku (npr. Type 3 bitmap fontovi s imenima `/a51`),
   znak se ne može vratiti (`` umjesto `Š`). To ne može ni Acrobat. Gdje Poppler zna znak,
-  semantički tekst koristi njega.
+  semantički tekst koristi njega. Glif bez Unicodea koji ništa ne crta (razmak u fontu s
+  neispravnom ToUnicode tablicom, čest u InDesign izvozu) u semantičkom tekstu je razmak;
+  vizualni HTML i dalje sadrži znak iz privatnog područja, kao i original.
 * `BDC` s imenovanim `/Properties` resursom (umjesto inline rječnika) Poppler ne javlja
   `OutputDev`-u, pa takav sadržaj ostaje bez MCID-a. Takav zapis je rijedak.
 
@@ -164,3 +200,6 @@ očekivani rezultati u `expected/`. Novi slučaj: dodajte izvor, pokrenite `src/
 
 Kod: `pdf2htmlEX/src/Semantic/` (detekcija, izlaz), `src/HTMLRenderer/semantic.cc` (veza s
 rendererom), `src/DrawingTracer.cc` (prikupljanje linija), `src/HTMLTextLine.cc` (anotacije).
+
+Dijagnostika: `--debug 1` ispisuje linije i retke teksta stranice; varijabla okoline
+`P2H_SEM_DEBUG=1` dodatno ispisuje korake detektora `hrules` (pojasevi, stupci, zaglavlje).

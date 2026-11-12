@@ -135,3 +135,21 @@ miješaju ćelije koriste se rasponi znakova (`data-sem`), uz opcijske span-ove 
 
 Verifikacija: isključena semantika → bajt-identično masteru (18 PDF-ova); uključena →
 pikselski identično (18 PDF-ova); `scripts/dev.sh test` zelen na obje verzije Popplera.
+
+### Provjera na stvarnom dokumentu (2026-11-12)
+
+Godišnje izvješće (InDesign, netagirano, 170 stranica). Ispravljeno u detekciji:
+
+* razmaci kao glifovi bez Unicodea (ToUnicode odbačen zbog kolizije) → razmak u semantičkom tekstu
+  (`FontInfo::blank_codes`, `ffw_is_blank_glyph`); preskočeni razmaci između segmenata retka;
+* crteži: bijele plohe/linije se zanemaruju (osim uz obojenu površinu), sve se reže na clip,
+  vrsta spojene linije po većini duljine, linija mreže mora završavati na mreži;
+* grafikoni: rijetko popunjena mreža s praznim stupcima/redovima, rešetka s oznakama osi;
+* hrules za financijske izvještaje: stupac naziva lijevo od linija, stupac bilješki, zaglavlje i
+  redovi iznad prve linije (DP dodjela naslova stupcima, naslovi skupina), red jedinice, redovi
+  bez naziva, naslovi odjeljaka (veliko slovo), prekid tablice na odlomku/razmaku;
+* rotirani tekst (smjer pisanja po znaku), indeksi/eksponenti.
+
+Rezultat: 85 tablica, ručno uspoređeno s `pdftotext -layout` (skripta za usporedbu nije u repou
+jer je dokument privatan). Novi testovi: `financial`, `chart`. Bez semantike i dalje bajt-identično
+masteru (22 PDF-a uključujući ovaj dokument), sa semantikom pikselski identično (14 stranica).
