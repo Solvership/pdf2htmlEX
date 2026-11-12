@@ -11,7 +11,10 @@
 * `--preset fidelity` (SVG background, Type 3 fonts as text), chosen by measurement.
 * Docker based local build (`scripts/dev.sh`), Poppler 26.11 / FontForge 20251009 variant.
 
-Documentation (Croatian): [docs/semanticki-sloj.md](docs/semanticki-sloj.md)
+Documentation (Croatian):
+* [docs/upute.md](docs/upute.md): setup, conversion, outputs, machine processing, all helper scripts
+* [docs/semanticki-sloj.md](docs/semanticki-sloj.md): how tables and paragraphs are detected
+* [docs/provjera-tablica.md](docs/provjera-tablica.md): checking the tables of a new PDF
 
 # Differences from upstream pdf2htmlEX: 
 

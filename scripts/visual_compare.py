@@ -6,8 +6,6 @@ Pixel comparison of two HTML renderings (run inside the dev container).
 
 Every page is rendered with headless Chromium at the same size and the
 screenshots are compared pixel by pixel. Exit code 1 if any pair differs.
-Optionally `--pdf FILE.pdf HTML` compares the PDF raster (pdftoppm) with the
-HTML rendering and reports the share of differing pixels (fidelity metric).
 """
 import os
 import subprocess

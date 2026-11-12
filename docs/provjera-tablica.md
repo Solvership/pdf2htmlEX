@@ -2,7 +2,7 @@
 
 Upute kako pretvoriti bilo koji PDF sa semantičkim slojem i provjeriti jesu li tablice
 prepoznate ispravno. Što semantički sloj jest i koje opcije postoje opisano je u
-[semanticki-sloj.md](semanticki-sloj.md).
+[semanticki-sloj.md](semanticki-sloj.md), a postavljanje i sve naredbe u [upute.md](upute.md).
 
 ## Brzo: jedna naredba
 

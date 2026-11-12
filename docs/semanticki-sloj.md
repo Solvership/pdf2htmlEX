@@ -23,8 +23,9 @@ pdf2htmlEX --preset semantic dokument.pdf
 pdf2htmlEX --semantic-tables 1 --semantic-output attrs,inline,json,html dokument.pdf
 ```
 
-Za isprobavanje bilo kojeg PDF-a s ovim buildom (Docker) i provjeru prepoznatih tablica vidi
-[provjera-tablica.md](provjera-tablica.md):
+Upute za postavljanje, pretvorbu, izlazne datoteke, strojnu obradu i sve pomoćne naredbe su u
+[upute.md](upute.md). Za isprobavanje bilo kojeg PDF-a s ovim buildom (Docker) i provjeru
+prepoznatih tablica vidi [provjera-tablica.md](provjera-tablica.md):
 
 ```bash
 scripts/try_pdf.sh "/putanja/do/Neki izvještaj.pdf" kratko_ime
