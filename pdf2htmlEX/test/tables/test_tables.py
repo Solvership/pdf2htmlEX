@@ -176,6 +176,48 @@ class TableTests(unittest.TestCase):
     def test_chart_is_not_a_table(self):
         self.assertEqual(self.results['chart']['tables'], [])
 
+    def test_overlay_hover_shows_cell(self):
+        """Overlay on, the mouse over a cell box shows its table, row, column and text."""
+        html = os.path.join(self.out, 'ruled_multiline.html')
+        with open(html, encoding='utf-8') as f:
+            doc = f.read()
+        script = r"""
+<script>
+window.addEventListener('load', function() {
+  window.pdf2htmlEXSemantic.toggleOverlay(true);
+  var res = {cells: document.querySelectorAll('.pdf2htmlEX-sem-cell').length, tip: null};
+  var cells = document.querySelectorAll('.pdf2htmlEX-sem-cell');
+  for (var i = 0; i < cells.length; ++i) {
+    if (cells[i]._sem.r !== 1 || cells[i]._sem.c !== 1) continue;
+    var b = cells[i].getBoundingClientRect();
+    cells[i].scrollIntoView({block: 'center'});
+    b = cells[i].getBoundingClientRect();
+    document.dispatchEvent(new MouseEvent('mousemove', {clientX: b.left + 3, clientY: b.top + b.height / 2, bubbles: true}));
+    var tip = document.querySelector('.pdf2htmlEX-sem-tip');
+    res.tip = tip && tip.style.display !== 'none' ? tip.textContent : null;
+    res.outline = cells[i].style.outline;
+    break;
+  }
+  var pre = document.createElement('pre'); pre.id = 'hover-result';
+  pre.textContent = JSON.stringify(res);
+  document.body.appendChild(pre);
+});
+</script>"""
+        test_html = os.path.join(self.out, 'hover_test.html')
+        with open(test_html, 'w', encoding='utf-8') as f:
+            f.write(doc.replace('</body>', script + '</body>'))
+        dom = subprocess.run(['chromium', '--headless=new', '--no-sandbox', '--disable-gpu', '--virtual-time-budget=3000',
+                              '--window-size=1200,900', '--dump-dom', 'file://' + test_html],
+                             check=True, capture_output=True, text=True).stdout
+        m = re.search(r'<pre id="hover-result">(.*?)</pre>', dom, re.S)
+        self.assertIsNotNone(m, 'overlay script did not run')
+        import html as h
+        res = json.loads(h.unescape(m.group(1)))
+        self.assertGreater(res['cells'], 0)
+        self.assertEqual(res['tip'], 'p1t0  red 2, stupac 2\n'
+                                     'Isporuka električne energije za razdoblje od siječnja do ožujka')
+        self.assertIn('2px', res['outline'])  # the hovered cell is highlighted
+
     def test_copy_paste_table(self):
         """Select the ruled table in Chromium, fire 'copy', check TSV / HTML."""
         html = os.path.join(self.out, 'ruled_multiline.html')

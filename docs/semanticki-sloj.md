@@ -137,8 +137,9 @@ postoje tri dijela:
 Da biste u pregledniku vidjeli što je prepoznato, pritisnite tipku **T** (ili otvorite
 `dokument.html#tables`). Preko stranice se iscrtava okvir svake tablice s oznakom
 (`p104t0 · 28×10` = stranica 104, tablica 0, 28 redova × 10 stupaca) i obojena ćelija za svaki
-dio teksta (prijeđite mišem preko ćelije za njezin red i stupac). Ponovni pritisak na T sakriva
-prikaz. Bez toga se ništa ne iscrtava.
+dio teksta. Kad je prikaz uključen, ćelija ispod miša dobije deblji okvir, a oznaka uz miš
+pokazuje tablicu, red i stupac (brojeno od 1; `data-r`/`data-c` i JSON broje od 0) te tekst
+ćelije. Ponovni pritisak na T sakriva prikaz. Bez toga se ništa ne iscrtava.
 
 Za pregled samo tablica otvorite `dokument.tables.html`.
 

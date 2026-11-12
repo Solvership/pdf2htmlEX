@@ -197,6 +197,8 @@
    */
   var COLORS = ['#d62728', '#1f77b4', '#2ca02c', '#9467bd', '#ff7f0e', '#17becf'];
   var overlayOn = false;
+  var overlayPages = [];   // pages with cell boxes (page._semCells)
+  var tip = null, hovered = null;
 
   // range of the text offsets [s, e) of a line div
   function textRange(div, s, e) {
@@ -215,6 +217,10 @@
   function removeOverlay() {
     var old = document.querySelectorAll('.pdf2htmlEX-sem-overlay');
     for (var i = 0; i < old.length; ++i) old[i].parentNode.removeChild(old[i]);
+    for (var j = 0; j < overlayPages.length; ++j) overlayPages[j]._semCells = null;
+    overlayPages = [];
+    hovered = null;
+    if (tip) tip.style.display = 'none';
   }
 
   function box(page, cls, x0, y0, x1, y1, color, alpha) {
@@ -260,14 +266,17 @@
         if (!parts[p].range) continue;
         var e = parts[p].e;
         var rects = parts[p].range.getClientRects();
+        var ckey = e.tbl + '|' + e.r + '|' + e.c;
+        var piece = parts[p].range.toString().replace(/\s+/g, ' ').trim();
         for (var q = 0; q < rects.length; ++q) {
           if (rects[q].width <= 0 || rects[q].height <= 0) continue;
           if (!tables[e.tbl]) order.push(e.tbl);
-          add(cells, e.tbl + '|' + e.r + '|' + e.c, page, rects[q], { tbl: e.tbl, r: e.r, c: e.c });
+          add(cells, e.tbl + '|' + e.r + '|' + e.c, page, rects[q], { tbl: e.tbl, r: e.r, c: e.c, texts: [] });
           add(tables, e.tbl, page, rects[q], { rows: 0, cols: 0 });
           tables[e.tbl].rows = Math.max(tables[e.tbl].rows, e.r + 1);
           tables[e.tbl].cols = Math.max(tables[e.tbl].cols, e.c + 1);
         }
+        if (piece && cells[ckey]) cells[ckey].texts.push(piece);
       }
     }
     for (var t = 0; t < order.length; ++t) {
@@ -283,9 +292,55 @@
     for (var key2 in cells) {
       var c = cells[key2];
       var cell = box(c.page, 'pdf2htmlEX-sem-cell', c.x0 - 1, c.y0 - 1, c.x1 + 1, c.y1 + 1, tables[c.tbl].color, c.r % 2 ? 0.18 : 0.08);
-      cell.title = c.tbl + ' r' + c.r + ' c' + c.c;
+      cell._sem = { tbl: c.tbl, r: c.r, c: c.c, text: c.texts.join(' '), color: tables[c.tbl].color };
+      if (!c.page._semCells) { c.page._semCells = []; overlayPages.push(c.page); }
+      c.page._semCells.push(cell);
     }
   }
+
+  /*
+   * Hover: the boxes let the mouse through (pointer-events:none, so text can
+   * still be selected), the cell under the pointer is found by its rectangle.
+   */
+  function showTip(cell, x, y) {
+    if (!tip) {
+      tip = document.createElement('div');
+      tip.className = 'pdf2htmlEX-sem-tip';
+      tip.style.cssText = 'position:fixed;z-index:2147483647;pointer-events:none;max-width:420px;' +
+        'font:12px/1.4 sans-serif;color:#fff;background:rgba(20,20,20,.92);padding:4px 7px;border-radius:3px;' +
+        'white-space:pre-wrap;box-shadow:0 1px 4px rgba(0,0,0,.4)';
+      document.body.appendChild(tip);
+    }
+    var m = cell._sem;
+    // shown from 1, data-r / data-c and the json count from 0
+    tip.textContent = m.tbl + '  red ' + (m.r + 1) + ', stupac ' + (m.c + 1) + (m.text ? '\n' + m.text : '');
+    tip.style.borderLeft = '4px solid ' + m.color;
+    tip.style.display = 'block';
+    var w = tip.offsetWidth, h = tip.offsetHeight;
+    tip.style.left = Math.max(0, Math.min(x + 14, window.innerWidth - w - 4)) + 'px';
+    tip.style.top = (y + 18 + h > window.innerHeight ? y - h - 8 : y + 18) + 'px';
+  }
+
+  function onHover(ev) {
+    if (!overlayOn) return;
+    var x = ev.clientX, y = ev.clientY, found = null;
+    var el = document.elementFromPoint(x, y);
+    var page = el && el.closest && el.closest('.pf');
+    var list = (page && page._semCells) || [];
+    for (var i = list.length - 1; i >= 0 && !found; --i) {
+      var b = list[i].getBoundingClientRect();
+      if (x >= b.left && x <= b.right && y >= b.top && y <= b.bottom) found = list[i];
+    }
+    if (found !== hovered) {
+      if (hovered) hovered.style.outline = '';
+      if (found) found.style.outline = '2px solid ' + found._sem.color;
+      hovered = found;
+    }
+    if (found) showTip(found, x, y);
+    else if (tip) tip.style.display = 'none';
+  }
+  document.addEventListener('mousemove', onHover, { passive: true });
+  document.addEventListener('scroll', function () { if (tip) tip.style.display = 'none'; }, { passive: true, capture: true });
 
   var pending = 0;
   function redraw() {
