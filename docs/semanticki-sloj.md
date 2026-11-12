@@ -162,8 +162,13 @@ postoje tri dijela:
 * vidljivi retci teksta (`div.t`) s atributima `data-tbl`/`data-r`/`data-c` ili `data-sem` (kojoj
   ćeliji pripada koji dio retka);
 * po stranici skriveni `<div class="pdf2htmlEX-semantic" hidden>` s pravim `<table>` i `<p>`.
-  `hidden` znači da ga preglednik ne prikazuje; služi za kopiranje, čitače ekrana i strojnu
-  obradu (npr. `document.querySelectorAll('.pdf2htmlEX-semantic table')`);
+  `hidden` znači da ga preglednik ne prikazuje. Služi za dvije stvari:
+  * **kopiranje**: iz njega skripta uzima puni tekst označenih ćelija i spojene ćelije;
+  * **strojnu obradu HTML-a**, bez zasebne JSON datoteke (npr.
+    `document.querySelectorAll('.pdf2htmlEX-semantic table')`, BeautifulSoup, `pandas.read_html`).
+
+  Čitači ekrana ga **ne čitaju**: `hidden` element uklanja i iz onoga što vide čitači ekrana.
+  Oni čitaju vidljive retke teksta (`div.t`), bez strukture tablice;
 * `pdf2htmlEX-semantic.js` za kopiranje i prikaz tablica.
 
 Da biste u pregledniku vidjeli što je prepoznato, pritisnite tipku **T** (ili otvorite

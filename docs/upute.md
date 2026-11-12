@@ -283,7 +283,19 @@ U `dokument.html` svaki redak teksta (`<div class="t">`) nosi oznaku čemu pripa
 
 Svaka stranica ima i skriveni `<div class="pdf2htmlEX-semantic" data-page-no="N" hidden>` u kojem
 su njezine tablice (`<table data-tbl=… data-source=…>`) i odlomci (`<p>`, `<h1>`, …) redoslijedom
-čitanja. Na tom se sloju temelje programi koji čitaju HTML:
+čitanja. Taj sloj služi za dvije stvari:
+
+* **kopiranje**: skripta iz vidljivih redaka zna koje su ćelije označene, a iz skrivene tablice
+  uzima njihov puni tekst (i kad je označen samo dio prelomljene ćelije) i spojene ćelije. Bez
+  njega (`--semantic-output` bez `inline`) kopiranje i dalje daje redove tablice, ali samo od
+  označenih komadića teksta i bez spojenih ćelija;
+* **programe koji čitaju HTML**: tablice i odlomci dostupni su iz samog `dokument.html`, bez
+  `.semantic.json`.
+
+Čitači ekrana ga ne čitaju: atribut `hidden` uklanja element i iz onoga što vide čitači ekrana.
+Oni čitaju vidljive retke teksta, bez strukture tablice.
+
+Primjer čitanja iz HTML-a:
 
 ```js
 // u konzoli preglednika: sve tablice kao nizovi redova
