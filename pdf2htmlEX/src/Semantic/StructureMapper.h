@@ -9,6 +9,7 @@
 #define STRUCTUREMAPPER_H__
 
 #include <map>
+#include <set>
 #include <string>
 
 #include "Semantic.h"
@@ -36,11 +37,15 @@ private:
     void process_block(const StructElement * e, const std::string & tag, Ctx & ctx);
     // collect (page, mcid) pairs of a subtree
     void collect_mcids(const StructElement * e, Ctx & ctx, std::vector<std::pair<int, int>> & out);
+    // remember the mcids of the inline Span elements of a subtree
+    void collect_spans(const StructElement * e, Ctx & ctx);
 
     std::map<int, std::map<int, PageInput::CellTag>> cells;   // page -> mcid -> cell
     std::map<int, std::map<int, PageInput::BlockTag>> blocks; // page -> mcid -> block
+    std::map<int, std::set<int>> span_mcids; // page -> mcids of inline Span elements of blocks
     int table_counter = 0;
     int block_counter = 0;
+    int seq_counter = 0; // order of blocks and tables in the structure tree
 };
 
 } // namespace semantic

@@ -64,6 +64,7 @@ struct Char
     bool space_before = false; // a word gap precedes the glyph in its HTML line
     int mcid = -1;             // marked content id (tagged PDF)
     int dir = 0;               // writing direction: 0 left to right, 1 bottom to top, 2 right to left (upside down), 3 top to bottom
+    bool auto_hyphen = false;  // tagged PDF: a hyphen added at a line break (not part of the text)
     bool is_space() const { return text == " " || text == "\xc2\xa0"; }
 };
 
@@ -109,6 +110,7 @@ struct Table
     std::string group;        // id of the first table of a continued chain
     bool repeated_header = false; // first row repeats the header of the chain's first table
     int order = 0;            // reading order among the blocks of the page
+    int struct_seq = -1;      // tagged tables: position in the structure tree
     std::vector<double> col_bounds; // column boundaries (x), size cols+1, if known
 };
 
@@ -118,6 +120,7 @@ struct Paragraph
     int page = 0;
     std::string tag = "p";    // p, h1..h6, li, caption
     int order = 0;            // reading order among the blocks of the page
+    int struct_seq = -1;      // tagged blocks: position in the structure tree
     Box box;
     std::vector<int> chars;
     std::vector<std::string> lines;
@@ -131,8 +134,8 @@ struct PageInput
     std::vector<Char> chars;          // indexed by Char::index
     std::vector<Rule> rules;
     // tagged PDF: mcid -> table cell / block
-    struct CellTag { std::string table_key; int row, col, rowspan, colspan; bool header; };
-    struct BlockTag { std::string key; std::string tag; };
+    struct CellTag { std::string table_key; int row, col, rowspan, colspan; bool header; int seq; };
+    struct BlockTag { std::string key; std::string tag; int seq; };
     std::map<int, CellTag> mcid_cells;
     std::map<int, BlockTag> mcid_blocks;
 };
@@ -146,6 +149,7 @@ struct PageResult
     std::vector<int> char_group;            // per char index: index into group_attrs or -1
     std::vector<std::string> group_attrs;   // attribute string (starting with a space)
     std::vector<std::string> group_keys;    // compact key: "t:<table>:<row>:<col>" or "p:<para>"
+    std::vector<char> auto_hyphen;          // per char index: a hyphen added at a line break
     // chars, kept for copy-paste reconstruction etc.
     std::vector<Char> chars;
 };
@@ -195,6 +199,11 @@ std::vector<Segment> split_segments(const std::vector<Char> & chars, const VLine
 std::string chars_text(const std::vector<Char> & chars, const std::vector<int> & seq);
 // Join visual lines of a block into one string.
 std::string join_lines(const std::vector<std::string> & lines, bool dehyphenate);
+// marker of a hyphen added at a line break in chars_text(); join_lines() removes
+// it when the word continues on the next line, visible_line() shows it as '-'
+extern const char * const AUTO_HYPHEN;
+std::string visible_line(const std::string & line);
+std::string expand_ligatures(const std::string & t);
 
 /*
  * Table detectors. `taken` marks chars already assigned to a table.
@@ -210,6 +219,8 @@ PageResult analyze_page(const PageInput & in, const Options & opt);
 
 // fill lines/text of the cells, and table/cell boxes
 void finalize_table(const PageInput & in, Table & t, const Options & opt);
+// remove the rows and columns without any text (spans are shortened)
+void drop_empty_rows_and_columns(const PageInput & in, Table & t);
 
 /*
  * Escaping helpers

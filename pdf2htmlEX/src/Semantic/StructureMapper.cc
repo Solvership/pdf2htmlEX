@@ -63,6 +63,48 @@ void StructureMapper::fill(int page, PageInput & in) const
     auto it2 = blocks.find(page);
     if (it2 != blocks.end())
         in.mcid_blocks = it2->second;
+
+    /*
+     * Hyphens added at line breaks: InDesign tags each of them as an inline
+     * Span of its own holding just the hyphen, after a letter. A hyphen that
+     * belongs to the text (a compound word, a dash for zero) is not.
+     */
+    auto it3 = span_mcids.find(page);
+    if (it3 != span_mcids.end())
+    {
+        std::map<int, vector<int>> by_mcid;
+        for (const auto & c : in.chars)
+            if (c.mcid >= 0 && it3->second.count(c.mcid))
+                by_mcid[c.mcid].push_back(c.index);
+        auto is_hyphen = [](const string & t) {
+            return t == "-" || t == "\xc2\xad" || t == "\xe2\x80\x90";
+        };
+        auto is_letter = [](const string & t) {
+            unsigned char c = t.empty() ? 0 : t[0];
+            return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c >= 0xC3;
+        };
+        for (const auto & kv : by_mcid)
+        {
+            int hy = -1;
+            bool only = true;
+            for (int ci : kv.second)
+            {
+                const auto & c = in.chars[ci];
+                if (c.text.empty() || c.is_space())
+                    continue;
+                if (hy < 0 && is_hyphen(c.text))
+                    hy = ci;
+                else
+                    only = false;
+            }
+            if (!only || hy <= 0)
+                continue;
+            // the glyph drawn before it: a letter on the same line
+            const auto & prev = in.chars[hy - 1];
+            if (prev.line == in.chars[hy].line && is_letter(prev.text))
+                in.chars[hy].auto_hyphen = true;
+        }
+    }
 }
 
 static string block_tag(StructElement::Type t)
@@ -131,8 +173,25 @@ void StructureMapper::collect_mcids(const StructElement * e, Ctx & ctx, vector<p
         collect_mcids(e->getChild(i), ctx, out);
 }
 
+void StructureMapper::collect_spans(const StructElement * e, Ctx & ctx)
+{
+    if (!e || e->isContent())
+        return;
+    if (e->getType() == StructElement::Span)
+    {
+        vector<pair<int, int>> sm;
+        collect_mcids(e, ctx, sm);
+        for (auto & pm : sm)
+            span_mcids[pm.first].insert(pm.second);
+        return;
+    }
+    for (unsigned i = 0; i < e->getNumChildren(); ++i)
+        collect_spans(e->getChild(i), ctx);
+}
+
 void StructureMapper::process_block(const StructElement * e, const string & tag, Ctx & ctx)
 {
+    int seq = seq_counter++;
     // tables nested in a block are still tables
     vector<pair<int, int>> mcids;
     std::function<void(const StructElement *)> rec = [&](const StructElement * x) {
@@ -143,6 +202,8 @@ void StructureMapper::process_block(const StructElement * e, const string & tag,
             process_table(x, ctx);
             return;
         }
+        if (!x->isContent() && x->getType() == StructElement::Span)
+            collect_spans(x, ctx);
         if (x->isContent())
         {
             collect_mcids(x, ctx, mcids);
@@ -156,7 +217,7 @@ void StructureMapper::process_block(const StructElement * e, const string & tag,
 
     string key = "B" + std::to_string(block_counter++);
     for (auto & pm : mcids)
-        blocks[pm.first][pm.second] = PageInput::BlockTag{key, tag};
+        blocks[pm.first][pm.second] = PageInput::BlockTag{key, tag, seq};
 }
 
 static int int_attr(const StructElement * e, Attribute::Type type, int def)
@@ -174,6 +235,7 @@ static int int_attr(const StructElement * e, Attribute::Type type, int def)
 void StructureMapper::process_table(const StructElement * table, Ctx & ctx)
 {
     string key = "S" + std::to_string(table_counter++);
+    int seq = seq_counter++;
 
     // collect rows (TR may be wrapped in THead / TBody / TFoot)
     vector<pair<const StructElement *, bool>> rows; // row, in THead
@@ -227,9 +289,10 @@ void StructureMapper::process_table(const StructElement * table, Ctx & ctx)
 
             vector<pair<int, int>> mcids;
             collect_mcids(cell, ctx, mcids);
+            collect_spans(cell, ctx);
             bool header = (cell->getType() == StructElement::TH) || rows[r].second;
             for (auto & pm : mcids)
-                cells[pm.first][pm.second] = PageInput::CellTag{key, (int)r, col, rs, cs, header};
+                cells[pm.first][pm.second] = PageInput::CellTag{key, (int)r, col, rs, cs, header, seq};
             col += cs;
         }
     }

@@ -1,0 +1,36 @@
+{
+ "tables": [
+  {
+   "page": 1,
+   "source": "tagged",
+   "rows": 4,
+   "cols": 3,
+   "cells": [
+    [
+     "Opis",
+     "2025.",
+     "2024."
+    ],
+    [
+     "Prihodi od prodaje",
+     "439.802",
+     "403.003"
+    ],
+    [
+     "Ostali prihodi",
+     "1.130",
+     "924"
+    ],
+    [
+     "Ukupno",
+     "440.932",
+     "403.927"
+    ]
+   ]
+  }
+ ],
+ "paragraphs": [
+  "Tablica s praznim retkom i praznim stupcem za razmak (kao iz InDesigna)",
+  "Kraj dokumenta."
+ ]
+}

@@ -213,3 +213,22 @@ Peta runda (drugi stvarni dokument: Word, 81 str., tagiran, ali financijski izvj
 * Rezultat: 53 tablice, sve provjerene (nijedna lažna); ostaju tablice bez linija (str. 5, 52,
   78), višeredno zaglavlje str. 79. CIAK nepromijenjen (96). Test `word`.
 
+Šesta runda (treći stvarni dokument: InDesign, tagiran, 73 str.):
+
+* automatska crtica: `StructureMapper` pamti MCID-ove inline `Span` elemenata (i u ćelijama);
+  znak koji je jedini sadržaj takvog MCID-a, crtica iza slova u istom retku → `Char::auto_hyphen`;
+  `chars_text` ga piše kao interni znak `AUTO_HYPHEN`, `join_lines` spaja riječ, `visible_line`
+  vraća '-' u `lines`; HTML redak dobiva `data-hy`, JS ga koristi pri kopiranju.
+* ligature U+FB00–FB06 → slova u `chars_text` (samo semantički tekst; `data-sem` rasponi se računaju
+  iz HTML teksta pa ostaju točni) i u JS-u pri kopiranju.
+* redoslijed: XY-cut spaja uzastopne vodoravne pojaseve sa zajedničkim stupčanim razmakom;
+  tagirani blokovi/tablice dobivaju `struct_seq` (zajednički brojač u stablu strukture) i
+  permutiraju se unutar svojih mjesta; tagirani odlomak se reže na dijelove gdje redoslijed
+  sadržaja skoči gore (novi stupac); `find_gutters`: redak bez tinte u razmaku ne prekida
+  razmak (≥ 2 i ≥ 30 % redaka sa stvarnim razmakom); broj/oznaka ispred teksta ide uz tekst.
+* tagirane tablice: `drop_empty_rows_and_columns`.
+* Rezultat: 0 preostalih ligatura, rastavljene ostaju samo prave složenice, redoslijed
+  ispravan na str. 4–21; CIAK str. 24 i dr. stupac po stupac; tablice CIAK nepromijenjene,
+  Jadroplov 2 tagirane tablice bez praznih redova/stupaca. Bez semantike bajt-identično.
+  Testovi `columns`, `tagged_spacer`, kopiranje s `data-hy`.
+

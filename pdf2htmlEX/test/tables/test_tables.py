@@ -244,6 +244,70 @@ class TableTests(unittest.TestCase):
         self.assertEqual(t['cells'][4], ['Poslije 2030.', '20.956'])
         self.assertEqual(t['cells'][5], ['51.577'])
 
+    def test_columns_reading_order(self):
+        # two columns with different baselines and paragraph gaps at the same
+        # heights: column by column, block by block; the margin number stays
+        # with its heading
+        starts = [p.split(' uprava')[0] for p in self.results['columns']['paragraphs']]
+        self.assertEqual([s for s in starts if s.startswith(('Lijevi', 'Desni', '1.1.'))],
+                         ['Lijevi prvi', 'Lijevi drugi', 'Desni prvi', 'Desni drugi',
+                          '1.1. DIONIČARI I INVESTICIJSKA JAVNOST',
+                          'Lijevi treći', 'Lijevi četvrti', 'Desni treći', 'Desni četvrti'])
+
+    def test_ligatures_expanded(self):
+        # LaTeX sets "fi" as the ligature U+FB01: the semantic text has the letters
+        paras = self.results['statement']['paragraphs']
+        self.assertTrue(any('financijskih' in p for p in paras))
+        self.assertFalse(any('ﬁ' in p for p in paras))
+
+    def test_tagged_spacer_rows_and_columns_dropped(self):
+        t = self.results['tagged_spacer']['tables'][0]
+        self.assertEqual((t['rows'], t['cols']), (4, 3))
+        self.assertEqual(t['cells'][0], ['Opis', '2025.', '2024.'])
+        self.assertEqual(t['cells'][3], ['Ukupno', '440.932', '403.927'])
+
+    def test_copy_joins_hyphenated_words(self):
+        """Lines marked data-hy end with a hyphen added at the line break: copy joins the word."""
+        script = os.path.join(DATA, 'pdf2htmlEX-semantic.js')
+        page = """<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>
+<div id="page-container"><div class="pf">
+<div class="t" data-para="p1p0" data-hy="1">Rezultati poka-</div>
+<div class="t" data-para="p1p0">zuju stabilno poslovanje i ﬁnancije.</div>
+<div class="t" data-para="p1p1">ČELIK-</div>
+<div class="t" data-para="p1p1">D&amp;T</div>
+</div></div>
+<script src="file://""" + script + """"></script>
+<script>
+window.addEventListener('load', function() {
+  var res = {};
+  [['p1p0', 'para0'], ['p1p1', 'para1']].forEach(function(x) {
+    var lines = document.querySelectorAll('.t[data-para="' + x[0] + '"]');
+    var range = document.createRange();
+    range.setStartBefore(lines[0]); range.setEndAfter(lines[lines.length - 1]);
+    var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    var dt = new DataTransfer();
+    document.dispatchEvent(new ClipboardEvent('copy', {clipboardData: dt, bubbles: true, cancelable: true}));
+    res[x[1]] = dt.getData('text/plain');
+  });
+  var pre = document.createElement('pre'); pre.id = 'copy-result';
+  pre.textContent = JSON.stringify(res);
+  document.body.appendChild(pre);
+});
+</script></body></html>"""
+        test_html = os.path.join(self.out, 'hyphen_test.html')
+        with open(test_html, 'w', encoding='utf-8') as f:
+            f.write(page)
+        dom = subprocess.run(['chromium', '--headless=new', '--no-sandbox', '--disable-gpu', '--virtual-time-budget=3000',
+                              '--allow-file-access-from-files', '--dump-dom', 'file://' + test_html],
+                             check=True, capture_output=True, text=True).stdout
+        m = re.search(r'<pre id="copy-result">(.*?)</pre>', dom, re.S)
+        self.assertIsNotNone(m, 'copy handler did not run')
+        import html as h
+        res = json.loads(h.unescape(m.group(1)))
+        self.assertEqual(res['para0'], 'Rezultati pokazuju stabilno poslovanje i financije.')
+        # a hyphen of the text (no data-hy) stays
+        self.assertEqual(res['para1'], 'ČELIK- D&T')
+
     def test_chart_is_not_a_table(self):
         self.assertEqual(self.results['chart']['tables'], [])
 

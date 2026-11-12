@@ -35,6 +35,7 @@ struct SemanticTags
     const std::vector<int> * char_group = nullptr;
     const std::vector<std::string> * group_attrs = nullptr;
     const std::vector<std::string> * group_keys = nullptr;  // compact keys, for data-sem ranges
+    const std::vector<char> * auto_hyphen = nullptr;        // per char: a hyphen added at a line break
     int group_of(int char_index) const
     {
         if (!char_group || char_index < 0 || char_index >= (int)char_group->size())

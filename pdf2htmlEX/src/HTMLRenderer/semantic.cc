@@ -263,6 +263,7 @@ void HTMLRenderer::analyze_page_semantics(void)
     cur_semantic_tags.char_group = &cur_semantic.char_group;
     cur_semantic_tags.group_attrs = &cur_semantic.group_attrs;
     cur_semantic_tags.group_keys = &cur_semantic.group_keys;
+    cur_semantic_tags.auto_hyphen = &cur_semantic.auto_hyphen;
 }
 
 } // namespace pdf2htmlEX

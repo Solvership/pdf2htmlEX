@@ -198,6 +198,40 @@ vector<Segment> split_segments(const vector<Char> & chars, const VLine & line, d
     return segs;
 }
 
+const char * const AUTO_HYPHEN = "\x1f";
+
+/*
+ * Typographic ligatures (U+FB00..U+FB06) as their letters: "\xef\xac\x81"
+ * (fi) would not be found by a search for "fi" and ends up in pasted text.
+ */
+string expand_ligatures(const string & t)
+{
+    if (t.find("\xef\xac") == string::npos)
+        return t;
+    static const char * const LIG[] = {"ff", "fi", "fl", "ffi", "ffl", "st", "st"};
+    string out;
+    for (size_t i = 0; i < t.size(); )
+    {
+        if (i + 2 < t.size() && (unsigned char)t[i] == 0xEF && (unsigned char)t[i + 1] == 0xAC
+                && (unsigned char)t[i + 2] >= 0x80 && (unsigned char)t[i + 2] <= 0x86)
+        {
+            out += LIG[(unsigned char)t[i + 2] - 0x80];
+            i += 3;
+        }
+        else
+            out += t[i++];
+    }
+    return out;
+}
+
+string visible_line(const string & line)
+{
+    string out = line;
+    for (size_t p; (p = out.find(AUTO_HYPHEN)) != string::npos; )
+        out.replace(p, 1, "-");
+    return out;
+}
+
 string chars_text(const vector<Char> & chars, const vector<int> & seq)
 {
     string out;
@@ -232,9 +266,13 @@ string chars_text(const vector<Char> & chars, const vector<int> & seq)
             if (!out.empty() && out.back() != ' ')
                 out += ' ';
         }
+        else if (c.auto_hyphen)
+        {
+            out += AUTO_HYPHEN;
+        }
         else
         {
-            out += c.text;
+            out += expand_ligatures(c.text);
         }
         prev = &c;
     }
@@ -278,6 +316,13 @@ string join_lines(const vector<string> & lines, bool dehyphenate)
             out = l;
             continue;
         }
+        // a hyphen added at the line break (tagged PDF): the word continues
+        if (out.back() == AUTO_HYPHEN[0])
+        {
+            out.pop_back();
+            out += l;
+            continue;
+        }
         // a line ending with a hyphen after a letter: the word continues on the next line
         bool hyphen = out.size() >= 2 && out.back() == '-' && out[out.size() - 2] != ' ' && is_lower_start(l);
         if (hyphen)
@@ -292,7 +337,8 @@ string join_lines(const vector<string> & lines, bool dehyphenate)
             out += l;
         }
     }
-    return out;
+    // a marked hyphen not at the end of a line (should not happen): keep it
+    return visible_line(out);
 }
 
 string json_escape(const string & s)

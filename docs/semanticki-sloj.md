@@ -48,7 +48,7 @@ Rezultat:
 | `--semantic-paragraphs 0\|1` | 1 | Grupira tekst izvan tablica u odlomke |
 | `--semantic-spans 0\|1` | 0 | Retke koji miješaju ćelije omata u `<span data-*>` (vidi niže) |
 | `--cell-line-join space\|br` | space | Kako se spajaju retci ćelije u semantičkom HTML-u |
-| `--dehyphenate 0\|1` | 0 | `elektro-` + `energetski` → `elektroenergetski` (zadano: `elektro-energetski`) |
+| `--dehyphenate 0\|1` | 0 | `elektro-` + `energetski` → `elektroenergetski` (zadano: `elektro-energetski`). Za tagirani PDF ne treba: crtica koju je program za prijelom dodao na kraju retka prepoznaje se iz tagova i uvijek se uklanja (vidi niže) |
 | `--preset fidelity\|semantic` | – | Grupe opcija (stavite ga **prije** ostalih opcija koje želite pregaziti) |
 
 `--preset fidelity` postavlja SVG pozadinu i Type 3 fontove kao tekst. Izbor je napravljen
@@ -62,7 +62,8 @@ mjerenjem (`scripts/fidelity_metric.py`, raster PDF-a naspram rendera HTML-a):
 1. **tagged**: tagirani PDF (Word/LibreOffice izvoz s „tagged PDF”, PDF/UA). Struktura se
    čita iz stabla strukture PDF-a (`Table/TR/TH/TD`, `RowSpan/ColSpan`) i povezuje s tekstom
    preko MCID oznaka. Ovo je **100 % pouzdano**: radi i bez ikakvih linija, a TH ćelije su
-   označene kao zaglavlje.
+   označene kao zaglavlje. Prazni retci i stupci koje program za prijelom dodaje radi razmaka
+   (InDesign, Word) se uklanjaju; rasponi (`rowspan`/`colspan`) se pritom skraćuju.
 2. **ruled**: tablice s mrežom linija. Okomite i vodoravne linije, uključujući tanke ispunjene
    pravokutnike i rubove osjenčanih ćelija, slažu se u mrežu. Prepoznaju se spojene ćelije
    (colspan/rowspan). **Ćelija s više redaka teksta ostaje jedna ćelija.**
@@ -141,8 +142,10 @@ na sljedećoj stranici prepoznaje se kao `repeated_header`.
 * Uz `--semantic-spans 1` takvi se retci umjesto toga omataju u `<span data-tbl=… data-r=… data-c=…>`.
   To je praktičnije za parsere, ali Chrome zbog dodatnih inline granica na transformiranom tekstu
   može pomaknuti antialiasing za djelić piksela.
+* Redak koji završava crticom koju je program za prijelom dodao (tagirani PDF): `data-hy="1"`;
+  kopiranje tada spaja riječ (`poka-` + `zuju` → `pokazuju`).
 * Skriveni semantički sadržaj stranice (redoslijed čitanja po XY-cut algoritmu, višestupčani
-  prijelom se čita stupac po stupac):
+  prijelom se čita stupac po stupac; u tagiranom PDF-u redoslijed elemenata iz tagova):
   ```html
   <div class="pdf2htmlEX-semantic" data-page-no="1" hidden>
     <p data-para="p1p0">…</p>
@@ -259,3 +262,20 @@ rendererom), `src/DrawingTracer.cc` (prikupljanje linija), `src/HTMLTextLine.cc`
 
 Dijagnostika: `--debug 1` ispisuje linije i retke teksta stranice; varijabla okoline
 `P2H_SEM_DEBUG=1` dodatno ispisuje korake detektora `hrules` (pojasevi, stupci, zaglavlje).
+
+## Tekst: rastavljene riječi, ligature, redoslijed
+
+* **Rastavljene riječi.** InDesign u tagiranom PDF-u svaku crticu koju doda na kraju retka
+  označi kao zaseban `Span` koji sadrži samo tu crticu. Takva crtica (iza slova) uklanja se iz
+  semantičkog teksta (JSON, skriveni sloj, ćelije) i pri kopiranju; prave složenice
+  („tehničko-tehnološki”, „ČELIK-D&T”) i crtica kao nula u tablici ostaju. Vidljivi tekst
+  stranice se ne mijenja. Za netagirane PDF-ove vrijedi `--dehyphenate`.
+* **Ligature** („ﬁ”, „ﬂ”, „ﬀ”, …, U+FB00–U+FB06) u semantičkom tekstu i pri kopiranju postaju
+  slova („fi”, „fl”, „ff”), da pretraga i obrada rade. Vidljivi tekst zadržava ligaturu (font je
+  crta kao jedan znak).
+* **Redoslijed čitanja.** Tekst u dva stupca čita se stupac po stupac, i kad su odlomci u oba
+  stupca poravnati po visini i kad se retci stupaca ne poklapaju po visini; broj u margini
+  („1.1.”) ide uz svoj naslov. U tagiranom PDF-u redoslijed odlomaka i tablica uzima se iz tagova
+  (zaglavlja i podnožja, koji nisu tagirani, ostaju na svom mjestu), a odlomak koji teče iz
+  jednog stupca u drugi čita se pravim redom.
+

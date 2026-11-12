@@ -184,6 +184,8 @@ void SemanticWriter::add_page(const PageResult & page)
     pages.back().chars.shrink_to_fit();
     pages.back().char_group.clear();
     pages.back().char_group.shrink_to_fit();
+    pages.back().auto_hyphen.clear();
+    pages.back().auto_hyphen.shrink_to_fit();
 }
 
 void SemanticWriter::link_continuations()

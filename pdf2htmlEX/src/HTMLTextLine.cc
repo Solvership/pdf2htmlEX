@@ -335,6 +335,18 @@ void HTMLTextLine::dump_text(ostream & real_out, const SemanticTags * tags)
         {
             range_mode = true;
         }
+        // the line ends with a hyphen added at the line break (copy joins the word)
+        if (cur_tags->auto_hyphen && line_state.first_char_index >= 0)
+            for (size_t i = text.size(); i-- > 0; )
+            {
+                int c = text[i];
+                if (c == 0 || c == ' ' || c == 0xa0)
+                    continue;
+                int ci = line_state.first_char_index + (int)i;
+                if (ci < (int)cur_tags->auto_hyphen->size() && (*cur_tags->auto_hyphen)[ci])
+                    line_attrs += " data-hy=\"1\"";
+                break;
+            }
     }
 
     // in range mode the line is buffered: data-sem is only known at the end

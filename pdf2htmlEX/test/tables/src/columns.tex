@@ -1,0 +1,50 @@
+% Two columns of text whose baselines do not match (the right column starts a
+% little lower), with paragraph gaps at the same heights in both columns, a
+% bullet list in each column, a full width heading with its number in the
+% margin between two such blocks: read column by column, block by block.
+\documentclass[a4paper,10pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=2.5cm]{geometry}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\begin{document}
+{\Large\bfseries IZVJEŠTAJ O PRIMJENI KODEKSA}
+
+\vspace{1em}
+\begin{minipage}[t]{7cm}
+Lijevi prvi uprava društva podnosi izvještaj o primjeni kodeksa korporativnog upravljanja u skladu s propisima te ga objavljuje na internetskoj stranici.
+
+Lijevi drugi uprava društva podnosi izvještaj o primjeni kodeksa korporativnog upravljanja u skladu s propisima te ga objavljuje na internetskoj stranici.
+\begin{itemize}\setlength{\itemsep}{0pt}
+\item transparentnost poslovanja,
+\item jasno razrađene procedure za rad nadzornog odbora i uprave,
+\end{itemize}
+\end{minipage}\hfill
+\begin{minipage}[t]{7cm}
+\vspace{3.5pt}
+Desni prvi uprava društva podnosi izvještaj o primjeni kodeksa korporativnog upravljanja u skladu s propisima te ga objavljuje na internetskoj stranici.
+
+Desni drugi uprava društva podnosi izvještaj o primjeni kodeksa korporativnog upravljanja u skladu s propisima te ga objavljuje na internetskoj stranici.
+\begin{itemize}\setlength{\itemsep}{0pt}
+\item izbjegavanje sukoba interesa,
+\item učinkovita unutarnja kontrola.
+\end{itemize}
+\end{minipage}
+
+\vspace{1.5em}
+\hspace*{-1.2cm}\makebox[1.2cm][l]{\bfseries 1.1.}{\bfseries DIONIČARI I INVESTICIJSKA JAVNOST}
+
+\vspace{0.5em}
+\begin{minipage}[t]{7cm}
+Lijevi treći uprava društva podnosi izvještaj o primjeni kodeksa korporativnog upravljanja u skladu s propisima te ga objavljuje na internetskoj stranici.
+
+Lijevi četvrti uprava društva podnosi izvještaj o primjeni kodeksa korporativnog upravljanja u skladu s propisima te ga objavljuje na internetskoj stranici.\end{minipage}\hfill
+\begin{minipage}[t]{7cm}
+\vspace{3.5pt}
+Desni treći uprava društva podnosi izvještaj o primjeni kodeksa korporativnog upravljanja u skladu s propisima te ga objavljuje na internetskoj stranici.
+
+Desni četvrti uprava društva podnosi izvještaj o primjeni kodeksa korporativnog upravljanja u skladu s propisima te ga objavljuje na internetskoj stranici.\end{minipage}
+\end{document}

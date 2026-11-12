@@ -700,6 +700,46 @@ vector<LSeg> make_lsegs(const PageInput & in, const vector<vector<Segment>> & li
  * Columns in which no cell starts (their text went to a spanning neighbour)
  * are removed: they come from text running across a column boundary.
  */
+bool cell_has_text(const PageInput & in, const Cell & cell)
+{
+    for (int ci : cell.chars)
+        if (!in.chars[ci].text.empty() && !in.chars[ci].is_space())
+            return true;
+    return false;
+}
+
+// rows without any text (spacing rows of a layout program); spans are shortened
+void drop_empty_rows(const PageInput & in, Table & t)
+{
+    for (int r = t.rows - 1; r >= 0 && t.rows > 1; --r)
+    {
+        bool starts = false;
+        for (const auto & cell : t.cells)
+            if (cell.row == r && cell_has_text(in, cell))
+            {
+                starts = true;
+                break;
+            }
+        if (starts)
+            continue;
+        vector<Cell> kept;
+        for (auto cell : t.cells)
+        {
+            if (cell.row == r && cell.rowspan == 1)
+                continue; // an empty cell of the row
+            if (cell.row == r)
+                cell.rowspan -= 1; // started here (empty), now starts at the next row
+            else if (cell.row < r && cell.row + cell.rowspan > r)
+                cell.rowspan -= 1;
+            else if (cell.row > r)
+                cell.row -= 1;
+            kept.push_back(cell);
+        }
+        t.cells = std::move(kept);
+        t.rows -= 1;
+    }
+}
+
 void drop_empty_columns(const PageInput & in, Table & t)
 {
     for (int c = t.cols - 1; c >= 0 && t.cols > 1; --c)
@@ -3055,6 +3095,12 @@ vector<Table> detect_stream_tables(const PageInput & in, vector<bool> & taken)
     return tables;
 }
 
+void drop_empty_rows_and_columns(const PageInput & in, Table & t)
+{
+    drop_empty_rows(in, t);
+    drop_empty_columns(in, t);
+}
+
 void finalize_table(const PageInput & in, Table & t, const Options & opt)
 {
     Box tb = t.box;
@@ -3071,6 +3117,8 @@ void finalize_table(const PageInput & in, Table & t, const Options & opt)
             cb.expand(vl.box);
         }
         c.text = join_lines(c.lines, opt.dehyphenate);
+        for (auto & l : c.lines)
+            l = visible_line(l);
         if (!c.box.valid())
             c.box = cb;
         tb.expand(c.box);

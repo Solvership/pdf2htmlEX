@@ -82,8 +82,30 @@
         else if (key.para) { piece.para = key.para; }
         pieces.push(piece);
       }
+      // the line ends with a hyphen added at the line break: the word goes on
+      if (e === text.length && div.hasAttribute('data-hy') && pieces.length && pieces[pieces.length - 1].line === div)
+        pieces[pieces.length - 1].hy = true;
     }
     return pieces;
+  }
+
+  // typographic ligatures (U+FB00..U+FB06) as letters
+  var LIGATURES = { '\uFB00': 'ff', '\uFB01': 'fi', '\uFB02': 'fl', '\uFB03': 'ffi', '\uFB04': 'ffl', '\uFB05': 'st', '\uFB06': 'st' };
+  function fixLigatures(s) {
+    return s.replace(/[\uFB00-\uFB06]/g, function (c) { return LIGATURES[c]; });
+  }
+
+  // join the pieces of a text block; a word hyphenated at a line break is joined
+  function joinParts(parts, sep) {
+    var out = '';
+    for (var i = 0; i < parts.length; ++i) {
+      var t = parts[i].text;
+      if (out && i > 0 && parts[i - 1].hy && /-\s*$/.test(out))
+        out = out.replace(/-\s*$/, '') + t.replace(/^\s+/, '');
+      else
+        out += (out ? sep : '') + t;
+    }
+    return out;
   }
 
   function escapeHtml(s) {
@@ -148,7 +170,17 @@
     var hasSemantic = false;
     for (var i = 0; i < pieces.length; ++i)
       if (pieces[i].tbl || pieces[i].para) { hasSemantic = true; break; }
-    if (!hasSemantic) return;
+    if (!hasSemantic) {
+      // plain text: only the ligatures are replaced
+      var plain = sel.toString();
+      if (!/[\uFB00-\uFB06]/.test(plain) || !ev.clipboardData) return;
+      var box = document.createElement('div');
+      box.appendChild(sel.getRangeAt(0).cloneContents());
+      ev.clipboardData.setData('text/plain', fixLigatures(plain));
+      ev.clipboardData.setData('text/html', fixLigatures(box.innerHTML));
+      ev.preventDefault();
+      return;
+    }
 
     var outText = [], outHtml = [];
     var cur = null; // current block: {kind:'table', tbl, cells} | {kind:'text', para, parts}
@@ -159,7 +191,7 @@
         outText.push(b.text);
         outHtml.push(b.html);
       } else {
-        var t = clean(cur.parts.join(cur.para ? ' ' : '\n'));
+        var t = clean(joinParts(cur.parts, cur.para ? ' ' : '\n'));
         if (t) {
           outText.push(t);
           outHtml.push('<p>' + escapeHtml(t) + '</p>');
@@ -176,14 +208,14 @@
       } else {
         if (!p.text.trim()) continue;
         if (!cur || cur.kind !== 'text' || cur.para !== p.para || !p.para) { flush(); cur = { kind: 'text', para: p.para, parts: [] }; }
-        cur.parts.push(p.text);
+        cur.parts.push(p);
       }
     }
     flush();
 
     if (ev.clipboardData) {
-      ev.clipboardData.setData('text/plain', outText.join('\n'));
-      ev.clipboardData.setData('text/html', outHtml.join('\n'));
+      ev.clipboardData.setData('text/plain', fixLigatures(outText.join('\n')));
+      ev.clipboardData.setData('text/html', fixLigatures(outHtml.join('\n')));
       ev.preventDefault();
     }
   }
