@@ -23,6 +23,13 @@ pdf2htmlEX --preset semantic dokument.pdf
 pdf2htmlEX --semantic-tables 1 --semantic-output attrs,inline,json,html dokument.pdf
 ```
 
+Za isprobavanje bilo kojeg PDF-a s ovim buildom (Docker) i provjeru prepoznatih tablica vidi
+[provjera-tablica.md](provjera-tablica.md):
+
+```bash
+scripts/try_pdf.sh "/putanja/do/Neki izvještaj.pdf" kratko_ime
+```
+
 Rezultat:
 
 | Datoteka / element | Sadržaj |
@@ -239,6 +246,8 @@ NEW_OPTS="--semantic-tables 1" scripts/compare_outputs.sh OUT "" a.pdf
 python3 scripts/visual_compare.py OUT/old/a.html OUT/new/a.html # pikselska usporedba
 python3 scripts/fidelity_metric.py a.pdf OUT/new/a.html 4       # PDF naspram HTML-a, zum 4×
 python3 scripts/semantic_dump.py OUT/new/a.semantic.json        # pregled tablica
+python3 scripts/check_tables.py check a.semantic.json a.pdf      # tablice naspram teksta PDF-a
+python3 scripts/check_tables.py diff stari.json novi.json --show # regresije među pokretanjima
 ```
 
 Testni korpus je u `pdf2htmlEX/test/tables/`: izvori su u `src/` (LaTeX i HTML za LibreOffice),
