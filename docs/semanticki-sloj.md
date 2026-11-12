@@ -87,6 +87,14 @@ mjerenjem (`scripts/fidelity_metric.py`, raster PDF-a naspram rendera HTML-a):
    * godine i naslovi skupina („Obveze | Imovina”) iznad parova stupaca protežu se preko para i
      kad su poravnati s brojevima jednog stupca; jedinica ispod dviju godina proteže se preko
      obje skupine.
+   * izgled iz **Worda**: linija ispod svakog brojčanog stupca posebno (rubovi ćelija s
+     razmakom između stupaca) spaja se u liniju preko cijele tablice; naslov odjeljka
+     („IMOVINA”) i podnaslov s dvotočkom („Usklađivanja za:”) između zaglavlja i redova; prazan
+     red ispod zaglavlja; naziv u dva retka s brojevima okomito centriranima između njih;
+     linije samo oko zbroja (redovi su iznad); jedan brojčani stupac s nazivima lijevo
+     („Godina | Iznos”).
+   * nije tablica: stranica teksta između linije zaglavlja i podnožja stranice, grafikoni
+     (tekst grafikona ne ulazi u tablice), podnožje s brojem stranice.
 4. **stream** (samo uz `all`): tablice bez ikakvih linija, iz poravnanja teksta. Ovo je
    heuristika, pa je isključena dok je ne zatražite.
 

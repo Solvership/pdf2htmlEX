@@ -219,6 +219,31 @@ class TableTests(unittest.TestCase):
         self.assertEqual(t['cells'][1], ['2025.', '2024.', '2025.', '2024.'])
         self.assertEqual(t['rows'], 5)
 
+    def test_word_columns_underlined_separately(self):
+        # Word: each number column underlined on its own; section heading and a
+        # "...:" subheading between the headings and the rows; a label starting with '('
+        tables = self.results['word']['tables']
+        self.assertEqual(len(tables), 3)  # none on the page of text between header and footer rules
+        t = tables[0]
+        self.assertEqual(t['cells'][0], ['Bilješka', '2025.', '2024.'])
+        self.assertEqual(t['cells'][1], ['IMOVINA'])
+        self.assertEqual(t['cells'][4], ['Usklađivanja za:'])
+        self.assertEqual(t['cells'][6][0], '(Umanjenje vrijednosti brodova) / ukidanje prethodno provedenog umanjenja')
+        self.assertEqual(t['cells'][-1], ['Ukupno', '81.706', '104.205'])
+
+    def test_word_label_centered_numbers(self):
+        # a label of two lines, the numbers vertically centered on it; rules only
+        # around the total, the rows above them
+        t = self.results['word']['tables'][1]
+        self.assertEqual(t['cells'][1], ['Centar za restrukturiranje i prodaju', '1.152.975', '1.152.975'])
+        self.assertEqual(t['rows'], 5)
+
+    def test_word_single_number_column(self):
+        t = self.results['word']['tables'][2]
+        self.assertEqual(t['cells'][0], ['Godina', 'Iznos'])
+        self.assertEqual(t['cells'][4], ['Poslije 2030.', '20.956'])
+        self.assertEqual(t['cells'][5], ['51.577'])
+
     def test_chart_is_not_a_table(self):
         self.assertEqual(self.results['chart']['tables'], [])
 

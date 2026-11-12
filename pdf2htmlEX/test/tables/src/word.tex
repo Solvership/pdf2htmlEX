@@ -1,0 +1,75 @@
+% Financial statements as Word lays them out:
+%  - each number column underlined on its own (cell borders with gaps between
+%    the columns), an empty row under the column headings, a section heading
+%    ("IMOVINA") and a subheading ending with ':' between the headings and the
+%    rows, a label starting with '(',
+%  - a label of two lines with the numbers vertically centered on it,
+%  - rules only around the total, the rows above them, a single column of
+%    numbers ("Godina | Iznos"),
+%  - a page of text between a header and a footer rule: not a table.
+\documentclass[a4paper,10pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage[margin=2.5cm]{geometry}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\renewcommand{\arraystretch}{1.25}
+\begin{document}
+{\small
+\begin{tabular}{@{}p{6.5cm}crr@{}}
+ & \textbf{Bilješka} & \textbf{2025.} & \textbf{2024.} \\[2.2em]
+\textbf{IMOVINA} & & & \\
+Nekretnine, postrojenja i oprema & 12 & 74.960 & 98.242 \\
+Zalihe & 14 & 439 & 791 \\
+Usklađivanja za: & & & \\
+Amortizaciju & 12,13 & 6.044 & 6.811 \\
+(Umanjenje vrijednosti brodova) / ukidanje prethodno provedenog umanjenja & 9 & (1.597) & 568 \\ \cmidrule(lr){3-3}\cmidrule(l){4-4}
+\textbf{Ukupno} & & \textbf{81.706} & \textbf{104.205} \\ \cmidrule(lr){3-3}\cmidrule(l){4-4}
+\end{tabular}}
+
+\vspace{3em}
+Vlasnička struktura Društva je kako slijedi:
+
+\vspace{1em}
+{\small
+\begin{tabular}{@{}m{4cm}m{2cm}<{\raggedleft}m{2cm}<{\raggedleft}@{}}
+ & \textbf{2025.} & \textbf{2024.} \\
+Centar za restrukturiranje i prodaju & 1.152.975 & 1.152.975 \\
+Domaće fizičke osobe & 429.007 & 428.267 \\
+Strane osobe & 1.515 & 1.210 \\ \cmidrule(lr){2-2}\cmidrule(l){3-3}
+\textbf{Ukupno} & \textbf{1.583.497} & \textbf{1.582.452} \\ \cmidrule(lr){2-2}\cmidrule(l){3-3}
+\end{tabular}}
+
+\vspace{3em}
+Otplatni plan glavnice kredita za sljedećih pet godina je kako slijedi:
+
+\vspace{1em}
+{\small
+\begin{tabular}{@{}p{3cm}r@{}}
+\textbf{Godina} & \textbf{Iznos} \\[1em]
+2026. & 11.059 \\
+2027. & 8.374 \\
+2028. & 11.188 \\
+Poslije 2030. & 20.956 \\ \cmidrule(l){2-2}
+ & \textbf{51.577} \\ \cmidrule(l){2-2}
+\end{tabular}}
+
+\newpage
+\hrule
+\vspace{2em}
+U usporedbi s prethodnom godinom i godinom prije, može se reći da je tržište rasutih tereta u oporavku, ali
+obzirom na trenutnu geopolitičku situaciju teško je predvidjeti sve moguće implikacije na ovaj segment tržišta.
+
+U cilju smanjenja utjecaja volatilnosti tržišta rasutih tereta na poslovanje Društva za brodove zaključeni su
+duži ugovori na vrijeme, koji omogućavaju redovite priljeve i stabilniji novčani tijek od 6 tisuća USD.
+
+Društvo će i dalje nastaviti ulagati značajne napore kako bi se troškovi maksimalno smanjili te smatramo da
+operativni troškovi za 3 broda za prijevoz rasutih tereta ne bi smjeli prijeći 6 tisuća USD u 2026. godini.
+\vfill
+\hrule
+\vspace{0.5em}
+JADROPLOV d.d., SPLIT \hfill 14
+\end{document}

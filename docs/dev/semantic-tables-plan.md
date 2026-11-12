@@ -194,3 +194,22 @@ Treća runda:
 * Rezultat 96 tablica; promijenjene samo str. 108 (nova, 41×7), 143 (+1), 146 (+2), 153 (+1),
   154 (+1). Test `fewrules`.
 
+Peta runda (drugi stvarni dokument: Word, 81 str., tagiran, ali financijski izvještaji tabulatorima):
+
+* prva verzija: 51 tablica, od toga ~20 lažnih (stranice teksta između linije zaglavlja i
+  podnožja), a glavni izvještaji (str. 29, 30, 32) i ~10 bilješki nisu prepoznati;
+* linije ispod svakog stupca posebno (Word) → grupe jedna uz drugu, na istim visinama, s brojem
+  iznad linije → jedna grupa s linijama preko svih stupaca;
+* zaglavlje: samostalan redak u stupcu naziva prihvaća se uz razmak redova tablice (i već
+  prihvaćenih redova), dvotočka prekida samo dugu rečenicu; samostalni retci na vrhu se odbacuju,
+  oni između zaglavlja i prvog reda su redovi; razmak do zaglavlja do 3,5 em;
+* `lead_case`: zagrada/navodnik ispred velikog slova („(Umanjenje …”);
+* naziv u dva retka s brojevima centriranima između njih (spajanje naziva i redaka gore);
+* fallback: redovi s brojevima neposredno iznad para linija oko zbroja ulaze u tijelo (i naziv
+  gornjeg reda koji počinje više); jedan brojčani stupac uz ≥ 3 naziva lijevo; odbija pojas s
+  tekstom, jedan red s jednim brojem (podnožje), „prozu“ od jedne riječi ne broji;
+* `band_has_prose`: ≥ 2 retka teksta preko širine; tekst grafikona (područje mreže s oznakama)
+  nije dostupan tablicama linija.
+* Rezultat: 53 tablice, sve provjerene (nijedna lažna); ostaju tablice bez linija (str. 5, 52,
+  78), višeredno zaglavlje str. 79. CIAK nepromijenjen (96). Test `word`.
+

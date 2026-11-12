@@ -1,0 +1,123 @@
+{
+ "tables": [
+  {
+   "page": 1,
+   "source": "hrules",
+   "rows": 8,
+   "cols": 4,
+   "cells": [
+    [
+     "Bilješka",
+     "2025.",
+     "2024."
+    ],
+    [
+     "IMOVINA"
+    ],
+    [
+     "Nekretnine, postrojenja i oprema",
+     "12",
+     "74.960",
+     "98.242"
+    ],
+    [
+     "Zalihe",
+     "14",
+     "439",
+     "791"
+    ],
+    [
+     "Usklađivanja za:"
+    ],
+    [
+     "Amortizaciju",
+     "12,13",
+     "6.044",
+     "6.811"
+    ],
+    [
+     "(Umanjenje vrijednosti brodova) / ukidanje prethodno provedenog umanjenja",
+     "9",
+     "(1.597)",
+     "568"
+    ],
+    [
+     "Ukupno",
+     "81.706",
+     "104.205"
+    ]
+   ]
+  },
+  {
+   "page": 1,
+   "source": "hrules",
+   "rows": 5,
+   "cols": 3,
+   "cells": [
+    [
+     "2025.",
+     "2024."
+    ],
+    [
+     "Centar za restrukturiranje i prodaju",
+     "1.152.975",
+     "1.152.975"
+    ],
+    [
+     "Domaće ﬁzičke osobe",
+     "429.007",
+     "428.267"
+    ],
+    [
+     "Strane osobe",
+     "1.515",
+     "1.210"
+    ],
+    [
+     "Ukupno",
+     "1.583.497",
+     "1.582.452"
+    ]
+   ]
+  },
+  {
+   "page": 1,
+   "source": "hrules",
+   "rows": 6,
+   "cols": 2,
+   "cells": [
+    [
+     "Godina",
+     "Iznos"
+    ],
+    [
+     "2026.",
+     "11.059"
+    ],
+    [
+     "2027.",
+     "8.374"
+    ],
+    [
+     "2028.",
+     "11.188"
+    ],
+    [
+     "Poslije 2030.",
+     "20.956"
+    ],
+    [
+     "51.577"
+    ]
+   ]
+  }
+ ],
+ "paragraphs": [
+  "Vlasnička struktura Društva je kako slijedi:",
+  "Otplatni plan glavnice kredita za sljedećih pet godina je kako slijedi:",
+  "U usporedbi s prethodnom godinom i godinom prije, može se reći da je tržište rasutih tereta u oporavku, ali obzirom na trenutnu geopolitičku situaciju teško je predvidjeti sve moguće implikacije na ovaj segment tržišta.",
+  "U cilju smanjenja utjecaja volatilnosti tržišta rasutih tereta na poslovanje Društva za brodove zaključeni su duži ugovori na vrijeme, koji omogućavaju redovite priljeve i stabilniji novčani tijek od 6 tisuća USD. Društvo će i dalje nastaviti ulagati značajne napore kako bi se troškovi maksimalno smanjili te smatramo da operativni troškovi za 3 broda za prijevoz rasutih tereta ne bi smjeli prijeći 6 tisuća USD u 2026. godini.",
+  "JADROPLOV d.d., SPLIT",
+  "14"
+ ]
+}
