@@ -1,7 +1,7 @@
 /*
  * semantic.cc
  *
- * Glue between the renderer and the semantic layer (Semantic/*):
+ * Glue between the renderer and the semantic layer (Semantic/):
  * marked content tracking and the per page analysis.
  */
 

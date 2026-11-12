@@ -66,6 +66,25 @@ vector<VLine> build_visual_lines(const vector<Char> & chars, const vector<int> &
                 found = k;
                 break;
             }
+            // a sub- or superscript: a smaller glyph right next to the line, shifted
+            if (chars[i].em > 0 && lines[k].em > 0 && chars[i].em <= 0.8 * lines[k].em && ov > 0.15 * ch)
+            {
+                bool next_to = false;
+                for (int j : lines[k].chars)
+                {
+                    Box o = reading_box(chars[j]);
+                    if (cb.x0 - o.x1 < 0.3 * lines[k].em && o.x0 - cb.x1 < 0.3 * lines[k].em)
+                    {
+                        next_to = true;
+                        break;
+                    }
+                }
+                if (next_to)
+                {
+                    found = k;
+                    break;
+                }
+            }
         }
         if (found < 0)
         {
@@ -78,6 +97,7 @@ vector<VLine> build_visual_lines(const vector<Char> & chars, const vector<int> &
         lines[found].chars.push_back(i);
         lines[found].box.expand(chars[i].box);
         rboxes[found].expand(cb);
+        lines[found].em = max(lines[found].em, chars[i].em); // provisional, recomputed below
     }
 
     // order chars inside each line: keep the drawing order of chars coming from

@@ -131,9 +131,6 @@ void HTMLTextLine::dump_chars(ostream & out, int begin, int len)
 {
     static const Color transparent(0, 0, 0, true);
 
-    // per glyph semantic groups are only needed if the line mixes several groups
-    const bool group_spans = cur_tags && !line_group_resolved && !range_mode;
-
     if (range_mode)
     {
         // compute the ranges, the output itself is not changed at all

@@ -264,6 +264,7 @@ int split_band_rows(vector<LSeg> & segs)
         if (!starts.empty() && a->box.y0 - starts.back() < 0.3 * a->em)
             continue; // same line
         bool accompanied = false;
+        bool all_lower = a->lead < 0; // the whole line continues wrapped texts
         for (const auto & s : segs)
         {
             if (s.col == anchor)
@@ -271,7 +272,8 @@ int split_band_rows(vector<LSeg> & segs)
             if (abs(s.box.y0 - a->box.y0) <= 0.5 * a->em || abs(s.box.y1 - a->box.y1) <= 0.5 * a->em)
             {
                 accompanied = true;
-                break;
+                if (s.lead > 0 || s.numeric)
+                    all_lower = false;
             }
         }
         if (k > 0)
@@ -283,6 +285,8 @@ int split_band_rows(vector<LSeg> & segs)
                     open_label = false; // completes the label above
                     continue;
                 }
+                if (all_lower)
+                    continue; // e.g. the second line of multi-line headings
             }
             else if (a->lead <= 0)
                 continue; // wrapped continuation
@@ -984,6 +988,40 @@ vector<Table> detect_ruled_tables(const PageInput & in, vector<bool> & taken, ve
                 continue;
         }
 
+        // empty first / last grid rows (an extra rule above or below the table)
+        {
+            int nrows = row_map[nr];
+            auto row_empty = [&](int r) {
+                for (const auto & c : final_cells)
+                    if (c.row <= r && c.row + c.rowspan > r)
+                        for (int ci : c.chars)
+                            if (!in.chars[ci].is_space())
+                                return false;
+                return true;
+            };
+            int top = 0, bottom = nrows - 1;
+            while (top < bottom && row_empty(top))
+                ++top;
+            while (bottom > top && row_empty(bottom))
+                --bottom;
+            if (top > 0 || bottom < nrows - 1)
+            {
+                vector<Cell> kept;
+                for (auto c : final_cells)
+                {
+                    int r0 = max(c.row, top), r1 = min(c.row + c.rowspan - 1, bottom);
+                    if (r0 > r1)
+                        continue;
+                    c.row = r0 - top;
+                    c.rowspan = r1 - r0 + 1;
+                    kept.push_back(c);
+                }
+                final_cells = std::move(kept);
+                for (auto & v : row_map)
+                    v = max(0, min(v - top, bottom - top + 1));
+            }
+        }
+
         Table t;
         t.source = "ruled";
         t.rows = row_map[nr];
@@ -1386,16 +1424,7 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                 // data row: text in the first column and a number in another one
                 bool label_col = best_bounds.size() >= 3;
                 auto is_number = [&](const Segment & sg) {
-                    string t = chars_text(in.chars, sg.chars);
-                    bool digit = false;
-                    for (char c : t)
-                    {
-                        if (c >= '0' && c <= '9')
-                            digit = true;
-                        else if (!strchr(".,()%-+/ ", c) && (unsigned char)c < 0x80)
-                            return false;
-                    }
-                    return digit || t == "-" || t == "\xe2\x80\x93"; // dash: nothing
+                    return is_numeric_text(chars_text(in.chars, sg.chars));
                 };
                 auto is_data_line = [&](const vector<Segment> & segs) {
                     if (!label_col)
@@ -1701,6 +1730,12 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                             vals.push_back(ls);
                     }
                     int m = ncols - first_value_col, k = (int)vals.size();
+                    if (getenv("P2H_SEM_DEBUG"))
+                        for (LSeg * v : vals)
+                            fprintf(stderr, "heading line %.1f: '%s' col %d span %d\n", line[0]->box.cy(), chars_text(in.chars, v->chars).c_str(), v->col, v->colspan);
+                    // headings over several columns (group headings, the unit) keep their span
+                    if (k > 0 && std::all_of(vals.begin(), vals.end(), [](const LSeg * v) { return v->colspan >= 2; }))
+                        k = 0;
                     if (k > 0 && k <= m)
                     {
                         const double INF = 1e30;
@@ -1755,10 +1790,34 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                 int n;
                 if ((int)b == header_band)
                 {
-                    // the column headings: one row of (multi-line) cells
+                    /*
+                     * The column headings: one row of (multi-line) cells. A line
+                     * with a single heading spanning several columns (a group
+                     * heading, the unit) is a row of its own.
+                     */
+                    std::sort(band.begin(), band.end(), [](const LSeg & a, const LSeg & c) { return a.box.cy() < c.box.cy(); });
+                    vector<std::pair<double, vector<LSeg *>>> hl; // lines
                     for (auto & sg : band)
-                        sg.row = 0;
-                    n = 1;
+                    {
+                        if (hl.empty() || sg.box.cy() - hl.back().first > 0.4 * sg.em)
+                            hl.emplace_back(sg.box.cy(), vector<LSeg *>());
+                        hl.back().second.push_back(&sg);
+                    }
+                    n = 0;
+                    bool prev_spanning = true;
+                    for (auto & l : hl)
+                    {
+                        vector<LSeg *> vals;
+                        for (LSeg * sg : l.second)
+                            if (!(label_extended && sg->col == 0))
+                                vals.push_back(sg);
+                        bool spanning = !vals.empty() && std::all_of(vals.begin(), vals.end(), [](const LSeg * v) { return v->colspan >= 2; });
+                        if (n == 0 || spanning || prev_spanning)
+                            ++n;
+                        for (LSeg * sg : l.second)
+                            sg->row = n - 1;
+                        prev_spanning = spanning;
+                    }
                 }
                 else
                     n = split_band_rows(band);

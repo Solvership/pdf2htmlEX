@@ -137,6 +137,22 @@ class TableTests(unittest.TestCase):
         self.assertEqual(t['rows'], 5)
         self.assertEqual(t['cells'][2], ['K2', 'Transformator s dugim opisom koji se prelama u drugi redak', '1'])
 
+    def test_financial_statement(self):
+        # rules only under the numbers: labels and note numbers left of them are columns,
+        # the wrapped label is one row, the sentence separates two tables
+        tables = self.results['financial']['tables']
+        self.assertEqual(len(tables), 2)
+        t = tables[0]
+        self.assertEqual(t['cells'][0], ['(u tisućama eura)', 'Bilješka', '2025.', '2024.'])
+        self.assertEqual(t['cells'][1], ['Nabavna vrijednost'])  # cells without text are left out
+        self.assertIn(['Potraživanja od kupaca i ostala potraživanja', '20', '650', '288'], t['cells'])
+        self.assertEqual(t['cells'][-1], ['11.460', '1.346'])
+        self.assertEqual(tables[1]['cells'][0], ['2025.', '2024.'])
+        self.assertEqual(tables[1]['rows'], 5)
+
+    def test_chart_is_not_a_table(self):
+        self.assertEqual(self.results['chart']['tables'], [])
+
     def test_copy_paste_table(self):
         """Select the ruled table in Chromium, fire 'copy', check TSV / HTML."""
         html = os.path.join(self.out, 'ruled_multiline.html')

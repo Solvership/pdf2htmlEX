@@ -1,0 +1,89 @@
+{
+ "tables": [
+  {
+   "page": 1,
+   "source": "hrules",
+   "rows": 8,
+   "cols": 4,
+   "cells": [
+    [
+     "(u tisućama eura)",
+     "Bilješka",
+     "2025.",
+     "2024."
+    ],
+    [
+     "Nabavna vrijednost"
+    ],
+    [
+     "Stanje na dan 1. siječnja",
+     "6",
+     "6.529",
+     "684"
+    ],
+    [
+     "Povećanja",
+     "-",
+     "64"
+    ],
+    [
+     "Stečeno kroz poslovne kombinacije",
+     "31",
+     "4.282",
+     "310"
+    ],
+    [
+     "Potraživanja od kupaca i ostala potraživanja",
+     "20",
+     "650",
+     "288"
+    ],
+    [
+     "Tečajne razlike",
+     "(1)",
+     "-"
+    ],
+    [
+     "11.460",
+     "1.346"
+    ]
+   ]
+  },
+  {
+   "page": 1,
+   "source": "hrules",
+   "rows": 5,
+   "cols": 3,
+   "cells": [
+    [
+     "2025.",
+     "2024."
+    ],
+    [
+     "Stanje 1. siječnja",
+     "5.652",
+     "4.744"
+    ],
+    [
+     "Naplaćeno",
+     "(332)",
+     "(109)"
+    ],
+    [
+     "Isknjiženje za nenaplativo",
+     "(881)",
+     "(322)"
+    ],
+    [
+     "Stanje 31. prosinca",
+     "4.439",
+     "4.313"
+    ]
+   ]
+  }
+ ],
+ "paragraphs": [
+  "BILJEŠKA 14 – NEMATERIJALNA IMOVINA",
+  "Kretanje u umanjenju vrijednosti potraživanja od kupaca bilo je kako slijedi:"
+ ]
+}
