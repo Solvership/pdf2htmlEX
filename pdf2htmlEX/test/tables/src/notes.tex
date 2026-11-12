@@ -1,0 +1,66 @@
+% Notes to financial statements, harder cases:
+%  - a year (and the unit) centered over two columns ("Brend | Goodwill"),
+%  - a wrapped label whose last line (with the numbers) starts upper case,
+%    next to a wrapped section heading ending with a full stop,
+%  - small tables of the same width one below the other, each with its own
+%    headings: they must stay separate tables.
+\documentclass[a4paper,10pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{array}
+\usepackage[margin=2.5cm]{geometry}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand{\gap}{\hspace{1.2cm}}
+\begin{document}
+Goodwill i brendovi alocirani su na sljedeće segmente:
+
+\vspace{1em}
+{\small
+\begin{tabular}{@{}p{4.5cm}rrrr@{}}
+ & Brend\gap & Goodwill & Brend\gap & Goodwill \\
+ & \multicolumn{2}{c}{2025.} & \multicolumn{2}{c}{2024.} \\
+ & \multicolumn{2}{c}{(u tisućama eura)} & \multicolumn{2}{c}{(u tisućama eura)} \\ \cline{2-5}
+Teretni program & -\gap & 191 & -\gap & 191 \\
+Auto program & 7.073\gap & 591 & 7.073\gap & 591 \\ \cline{2-5}
+ & 7.073\gap & 782 & 7.073\gap & 782 \\ \cline{2-5}
+\end{tabular}}
+
+\vspace{2em}
+Kretanje nematerijalne imovine bilo je kako slijedi:
+
+\vspace{1em}
+{\small
+\begin{tabular}{@{}b{3.2cm}rrr@{}}
+(u tisućama eura) & Brend & Software & Ukupno \\ \cline{2-4}
+Razdoblje od datuma stjecanja do\newline 31. prosinca 2024. & & & \\
+Prihod od prodaje & 6.904 & 629 & 7.533 \\
+Neto knjigovodstvena\newline vrijednost\newline Na 31. prosinca 2025. & 7.073 & 2.730 & 9.803 \\
+Amortizacija & - & 669 & 669 \\ \cline{2-4}
+ & 13.977 & 4.028 & 18.005 \\ \cline{2-4}
+\end{tabular}}
+
+\vspace{2em}
+Transakcije s povezanim stranama:
+
+\vspace{1em}
+{\small
+\begin{tabular}{@{}p{8cm}rr@{}}
+Prihodi od prodaje & 2025. & 2024. \\
+ & \multicolumn{2}{c}{(u tisućama eura)} \\ \cline{2-3}
+Većinski dioničar & 1.008 & 594 \\
+Ulaganja po metodi udjela & 58 & 98 \\ \cline{2-3}
+ & 1.066 & 692 \\[1.5em]
+Troškovi prodane robe & 2025. & 2024. \\
+ & \multicolumn{2}{c}{(u tisućama eura)} \\ \cline{2-3}
+Većinski dioničar & 1.765 & 1.394 \\
+Ulaganja po metodi udjela & 54 & 92 \\ \cline{2-3}
+ & 1.819 & 1.486 \\[1.5em]
+Krediti i zajmovi & 2025. & 2024. \\
+ & \multicolumn{2}{c}{(u tisućama eura)} \\ \cline{2-3}
+Većinski dioničar & 3.805 & 4.644 \\
+Ulaganja po metodi udjela & - & - \\ \cline{2-3}
+ & 3.805 & 4.644 \\ \cline{2-3}
+\end{tabular}}
+\end{document}

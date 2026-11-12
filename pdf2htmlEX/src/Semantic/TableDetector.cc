@@ -165,6 +165,7 @@ struct LSeg
     double em = 10;
     int lead = 0; // first letter: +1 upper case, -1 lower case, 0 no letter
     bool numeric = false; // a number (or a dash standing for nothing)
+    bool closed = false;  // ends with '.' or ':' (a complete heading or sentence)
     int row = 0; // output
 };
 
@@ -202,6 +203,13 @@ bool is_numeric_text(const string & t)
             return false;
     }
     return digit;
+}
+
+// a year used as a column heading ("2025", "2025.")
+bool is_year_text(const string & t)
+{
+    return t.size() >= 4 && t.size() <= 5 && (t.compare(0, 2, "19") == 0 || t.compare(0, 2, "20") == 0)
+           && t.find_first_not_of("0123456789.") == string::npos && (t.size() == 4 || t[4] == '.');
 }
 
 // letter case of the first non blank char of a sequence
@@ -258,11 +266,17 @@ int split_band_rows(vector<LSeg> & segs)
 
     vector<double> starts;
     bool open_label = false; // the last row so far has a label only
+    int open_lines = 0;      // its number of lines
+    double open_gap = 0;     // the gap between its lines
+    double prev_y1 = 0;      // bottom of the previous anchor line
+    bool open_closed = false; // its last line ends a sentence
     for (size_t k = 0; k < anchor_segs.size(); ++k)
     {
         const LSeg * a = anchor_segs[k];
         if (!starts.empty() && a->box.y0 - starts.back() < 0.3 * a->em)
             continue; // same line
+        double gap = a->box.y0 - prev_y1;
+        prev_y1 = a->box.y1;
         bool accompanied = false;
         bool all_lower = a->lead < 0; // the whole line continues wrapped texts
         for (const auto & s : segs)
@@ -280,18 +294,36 @@ int split_band_rows(vector<LSeg> & segs)
         {
             if (accompanied)
             {
-                if (open_label && a->lead < 0)
+                /*
+                 * The last line of the label above. A label that already wrapped is
+                 * as wide as its column: not a section heading (they are short or
+                 * run across the columns), so its last line may start upper case
+                 * too ("Net book value / At 31 December") - when set as close as
+                 * the label's own lines.
+                 */
+                if (open_label && (a->lead < 0 || (open_lines >= 2 && !open_closed && gap <= open_gap + 0.25 * a->em)))
                 {
-                    open_label = false; // completes the label above
+                    open_label = false;
                     continue;
                 }
                 if (all_lower)
                     continue; // e.g. the second line of multi-line headings
             }
             else if (a->lead <= 0)
+            {
+                if (open_label)
+                {
+                    if (open_lines == 1)
+                        open_gap = gap;
+                    ++open_lines;
+                    open_closed = a->closed;
+                }
                 continue; // wrapped continuation
+            }
         }
         open_label = !accompanied;
+        open_lines = 1;
+        open_closed = a->closed;
         starts.push_back(a->box.y0);
     }
 
@@ -324,6 +356,29 @@ int split_band_rows(vector<LSeg> & segs)
                     break;
                 }
             }
+        }
+        /*
+         * A line holding only text spanning several columns (a group heading,
+         * the unit line under column headings) is a row of its own.
+         */
+        for (const auto & s : segs)
+        {
+            if (s.col == anchor || s.colspan < 2 || s.numeric || s.box.y0 <= starts[0] + 0.5 * s.em)
+                continue;
+            bool alone = true;
+            for (const auto & o : segs)
+                if (&o != &s && (o.colspan < 2 || o.col == anchor || o.numeric)
+                        && abs(o.box.cy() - s.box.cy()) < 0.5 * s.em)
+                    alone = false;
+            // under narrower headings (not the next line of a wrapped heading
+            // spanning the same columns, nor a heading centered in a tall cell)
+            const LSeg * above = nullptr;
+            for (const auto & o : segs)
+                if (&o != &s && o.box.y1 <= s.box.y0 + 0.2 * s.em && o.col < s.col + s.colspan && o.col + o.colspan > s.col
+                        && (!above || o.box.y1 > above->box.y1))
+                    above = &o;
+            if (alone && above && above->colspan < s.colspan)
+                extra.push_back(s.box.y0);
         }
         for (double y : extra)
         {
@@ -606,7 +661,11 @@ vector<LSeg> make_lsegs(const PageInput & in, const vector<vector<Segment>> & li
                 em_sum += in.chars[i].em;
             ls.em = max(em_sum / s.chars.size(), 1.0);
             ls.lead = lead_case(in, s.chars);
-            ls.numeric = is_numeric_text(chars_text(in.chars, s.chars));
+            {
+                string t = chars_text(in.chars, s.chars);
+                ls.numeric = is_numeric_text(t);
+                ls.closed = !t.empty() && (t.back() == '.' || t.back() == ':');
+            }
             int c0 = -1, c1 = -1;
             for (int c = 0; c < ncols; ++c)
             {
@@ -672,6 +731,328 @@ void drop_empty_columns(const PageInput & in, Table & t)
             t.col_bounds.erase(t.col_bounds.begin() + c + 1 - (c + 1 == (int)t.col_bounds.size() - 1 ? 1 : 0));
         t.cols -= 1;
     }
+}
+
+/*
+ * Small tables set one below the other with the same columns (and rules of
+ * the same extent) are found as one table. Each of them starts with its own
+ * column headings: a run of heading rows after data rows, repeating the
+ * headings of the table (same texts, or years), starts a new table.
+ */
+struct RowClass
+{
+    bool data = false;   // a number (not a year) in some cell
+    bool head = false;   // no data, text in a value column
+    int years = 0;       // year headings in the value columns
+};
+
+string norm_space(const string & s)
+{
+    string o;
+    for (char c : s)
+    {
+        if (c == ' ' || c == '\t' || c == '\n')
+        {
+            if (!o.empty() && o.back() != ' ')
+                o += ' ';
+        }
+        else
+            o += c;
+    }
+    while (!o.empty() && o.back() == ' ')
+        o.pop_back();
+    return o;
+}
+
+// text of a cell, its lines joined with spaces
+string cell_text(const PageInput & in, const vector<int> & chars)
+{
+    string o;
+    for (const auto & l : build_visual_lines(in.chars, chars))
+    {
+        string s = chars_text(in.chars, l.chars);
+        if (!s.empty())
+            o = o.empty() ? s : o + " " + s;
+    }
+    return norm_space(o);
+}
+
+vector<RowClass> classify_rows(const PageInput & in, const Table & t)
+{
+    vector<RowClass> rc(t.rows);
+    vector<bool> value_text(t.rows, false);
+    for (const auto & c : t.cells)
+    {
+        string s = cell_text(in, c.chars);
+        if (s.empty() || c.row < 0 || c.row >= t.rows)
+            continue;
+        bool year = is_year_text(s);
+        if (is_numeric_text(s) && !year)
+            rc[c.row].data = true;
+        if (c.col >= 1)
+        {
+            value_text[c.row] = true;
+            if (year)
+                ++rc[c.row].years;
+        }
+    }
+    for (int r = 0; r < t.rows; ++r)
+        rc[r].head = !rc[r].data && value_text[r];
+    return rc;
+}
+
+// texts of the value columns of rows [r0, r1), per column
+std::map<int, string> heading_texts(const PageInput & in, const Table & t, int r0, int r1)
+{
+    vector<const Cell *> cs;
+    for (const auto & c : t.cells)
+        if (c.row >= r0 && c.row < r1 && c.col >= 1)
+            cs.push_back(&c);
+    std::sort(cs.begin(), cs.end(), [](const Cell * a, const Cell * b) { return a->row < b->row; });
+    std::map<int, string> m;
+    for (const Cell * c : cs)
+    {
+        string s = cell_text(in, c->chars);
+        if (s.empty())
+            continue;
+        string & d = m[c->col];
+        d = d.empty() ? s : d + " " + s;
+    }
+    return m;
+}
+
+// do the heading rows [r0, r1) repeat the headings `ref` of their table?
+bool repeats_heading(const PageInput & in, const Table & t, const vector<RowClass> & rc, int r0, int r1,
+                     const std::map<int, string> & ref)
+{
+    int years = 0;
+    for (int r = r0; r < r1; ++r)
+        years += rc[r].years;
+    if (years >= 2)
+        return true;
+    if (ref.empty())
+        return false;
+    auto h = heading_texts(in, t, r0, r1);
+    int same = 0;
+    for (const auto & kv : ref)
+    {
+        auto it = h.find(kv.first);
+        if (it != h.end() && it->second == kv.second)
+            ++same;
+    }
+    return same >= 2 && 2 * same >= (int)ref.size();
+}
+
+// rows [r0, r1) of t as a table of their own; when `merge_head` the leading
+// heading rows are merged into one row (multi-line headings), except rows
+// with spanning headings only (group headings, the unit)
+Table table_rows(const PageInput & in, const Table & t, int r0, int r1, bool merge_head, const vector<RowClass> & rc)
+{
+    Table o;
+    o.source = t.source;
+    o.cols = t.cols;
+    o.col_bounds = t.col_bounds;
+    vector<int> map(t.rows, -1);
+    int n = 0;
+    bool in_head = merge_head;
+    bool prev_merge = false;
+    for (int r = r0; r < r1; ++r)
+    {
+        bool spanning = true, any = false;
+        for (const auto & c : t.cells)
+            if (c.row == r && c.col >= 1 && !c.chars.empty())
+            {
+                any = true;
+                if (c.colspan < 2)
+                    spanning = false;
+            }
+        spanning = spanning && any;
+        if (in_head && !rc[r].head)
+            in_head = false;
+        bool merge = in_head && !spanning;
+        if (merge && prev_merge)
+            map[r] = n - 1;
+        else
+            map[r] = n++;
+        prev_merge = merge;
+    }
+    std::map<std::pair<int, int>, size_t> idx;
+    for (const auto & c : t.cells)
+    {
+        if (c.row < r0 || c.row >= r1)
+            continue;
+        Cell nc = c;
+        nc.row = map[c.row];
+        if (merge_head && rc[c.row].head)
+        {
+            bool lead = true;
+            for (int r = r0; r < c.row; ++r)
+                if (!rc[r].head)
+                    lead = false;
+            if (lead)
+                nc.header = true;
+        }
+        auto key = std::make_pair(nc.row, nc.col);
+        auto it = idx.find(key);
+        if (it == idx.end())
+        {
+            idx[key] = o.cells.size();
+            o.cells.push_back(nc);
+        }
+        else
+        {
+            Cell & d = o.cells[it->second];
+            d.chars.insert(d.chars.end(), nc.chars.begin(), nc.chars.end());
+            d.colspan = max(d.colspan, nc.colspan);
+            d.box.expand(nc.box);
+            d.header = d.header || nc.header;
+        }
+    }
+    o.rows = n;
+    Box b;
+    for (const auto & c : o.cells)
+        b.expand(c.box);
+    o.box = Box(t.col_bounds.empty() ? b.x0 : t.col_bounds.front(), b.y0,
+                t.col_bounds.empty() ? b.x1 : t.col_bounds.back(), b.y1);
+    drop_empty_columns(in, o);
+    return o;
+}
+
+// number of leading heading rows
+int leading_heads(const vector<RowClass> & rc)
+{
+    int h = 0;
+    while (h < (int)rc.size() && rc[h].head)
+        ++h;
+    return h;
+}
+
+bool same_columns(const Table & a, const Table & b)
+{
+    if (a.cols != b.cols || a.col_bounds.size() != b.col_bounds.size())
+        return false;
+    for (size_t k = 0; k < a.col_bounds.size(); ++k)
+        if (abs(a.col_bounds[k] - b.col_bounds[k]) > 8)
+            return false;
+    return true;
+}
+
+void split_repeated_headings(const PageInput & in, vector<Table> & tables)
+{
+    std::sort(tables.begin(), tables.end(), [](const Table & a, const Table & b) { return a.box.y0 < b.box.y0; });
+
+    /*
+     * Heading rows at the end of a table belong to the table directly below
+     * (the rule under the headings of the next table ended this one).
+     */
+    vector<bool> got_heading(tables.size(), false);
+    for (size_t i = 0; i + 1 < tables.size(); ++i)
+    {
+        Table & t = tables[i];
+        auto rc = classify_rows(in, t);
+        int h0 = leading_heads(rc);
+        int e = t.rows;
+        while (e > 0 && rc[e - 1].head)
+            --e;
+        bool data_before = false;
+        for (int r = h0; r < e; ++r)
+            if (rc[r].data)
+                data_before = true;
+        if (e == t.rows || !data_before || !repeats_heading(in, t, rc, e, t.rows, heading_texts(in, t, 0, h0)))
+            continue;
+        double bottom = -1e30, em = 10;
+        for (const auto & c : t.cells)
+            if (c.row >= e)
+            {
+                bottom = max(bottom, c.box.y1);
+                if (!c.chars.empty())
+                    em = max(in.chars[c.chars.front()].em, 4.0);
+            }
+        for (size_t j = i + 1; j < tables.size(); ++j)
+        {
+            Table & u = tables[j];
+            if (u.source != t.source || !same_columns(t, u) || u.box.y0 < bottom - 2 || u.box.y0 - bottom > 2 * em)
+                continue;
+            // move the rows [e, t.rows) to the top of u
+            int n = t.rows - e;
+            for (auto & c : u.cells)
+                c.row += n;
+            vector<Cell> keep;
+            for (auto & c : t.cells)
+            {
+                if (c.row >= e)
+                {
+                    c.row -= e;
+                    u.cells.push_back(c);
+                }
+                else
+                    keep.push_back(c);
+            }
+            t.cells = std::move(keep);
+            t.rows = e;
+            u.rows += n;
+            Box tb, ub;
+            for (const auto & c : t.cells)
+                tb.expand(c.box);
+            for (const auto & c : u.cells)
+                ub.expand(c.box);
+            t.box.y1 = tb.y1;
+            u.box.y0 = ub.y0;
+            got_heading[j] = true;
+            if (getenv("P2H_SEM_DEBUG"))
+                fprintf(stderr, "headings: %d rows moved to the table below\n", n);
+            break;
+        }
+    }
+
+    vector<Table> out;
+    for (size_t i = 0; i < tables.size(); ++i)
+    {
+        Table & t = tables[i];
+        auto rc = classify_rows(in, t);
+        int h0 = leading_heads(rc);
+        auto ref = heading_texts(in, t, 0, h0);
+        vector<int> cuts{0};
+        bool data = false;
+        for (int r = h0; r < t.rows; )
+        {
+            if (rc[r].data)
+            {
+                data = true;
+                ++r;
+                continue;
+            }
+            if (!rc[r].head || !data)
+            {
+                ++r;
+                continue;
+            }
+            int e = r;
+            while (e < t.rows && rc[e].head)
+                ++e;
+            bool data_after = false;
+            for (int k = e; k < t.rows; ++k)
+                if (rc[k].data)
+                    data_after = true;
+            if (data_after && repeats_heading(in, t, rc, r, e, ref))
+            {
+                cuts.push_back(r);
+                data = false;
+            }
+            r = e;
+        }
+        if (cuts.size() == 1 && !got_heading[i])
+        {
+            out.push_back(std::move(t));
+            continue;
+        }
+        if (getenv("P2H_SEM_DEBUG") && cuts.size() > 1)
+            fprintf(stderr, "headings: table split into %zu tables\n", cuts.size());
+        cuts.push_back(t.rows);
+        for (size_t k = 0; k + 1 < cuts.size(); ++k)
+            out.push_back(table_rows(in, t, cuts[k], cuts[k + 1], k > 0 || got_heading[i], rc));
+    }
+    tables = std::move(out);
 }
 
 } // namespace
@@ -1664,10 +2045,7 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                         if (ls.numeric && !(label_extended && ls.col == 0))
                         {
                             // years are headings, not data
-                            string t = chars_text(in.chars, ls.chars);
-                            bool year = t.size() >= 4 && t.size() <= 5 && (t.compare(0, 2, "19") == 0 || t.compare(0, 2, "20") == 0)
-                                        && t.find_first_not_of("0123456789.") == string::npos;
-                            if (!year)
+                            if (!is_year_text(chars_text(in.chars, ls.chars)))
                                 numbers = true;
                         }
                     }
@@ -1687,13 +2065,17 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
             if (!heading_chars.empty())
             {
                 int ncols = (int)best_bounds.size() - 1;
+                // extent of the values of each column: its numbers, if it has any (a
+                // unit line under the headings is not a value)
                 vector<double> cl(ncols, 1e30), cr(ncols, -1e30);
-                for (const auto & ls : lsegs)
-                    if (ls.colspan == 1 && !ls.chars.empty() && !heading_chars.count(ls.chars.front()))
-                    {
-                        cl[ls.col] = min(cl[ls.col], ls.box.x0);
-                        cr[ls.col] = max(cr[ls.col], ls.box.x1);
-                    }
+                for (int pass = 0; pass < 2; ++pass)
+                    for (const auto & ls : lsegs)
+                        if (ls.colspan == 1 && !ls.chars.empty() && !heading_chars.count(ls.chars.front())
+                                && (pass == 0 ? ls.numeric : cl[ls.col] > cr[ls.col]))
+                        {
+                            cl[ls.col] = min(cl[ls.col], ls.box.x0);
+                            cr[ls.col] = max(cr[ls.col], ls.box.x1);
+                        }
                 // per heading line: an order preserving assignment of its segments to
                 // the value columns, minimizing the alignment distance
                 auto dist = [&](const LSeg & ls, int c) {
@@ -1710,6 +2092,39 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                     return a->box.cy() < b->box.cy() || (a->box.cy() == b->box.cy() && a->box.x0 < b->box.x0);
                 });
                 int first_value_col = (best_bounds.size() >= 3 && label_extended) ? 1 : 0;
+                // extent of the single column headings assigned so far (lines above)
+                vector<double> hl(ncols, 1e30), hr(ncols, -1e30);
+                /*
+                 * A heading centered over a group of adjacent columns, between their
+                 * values (a year over "Brand | Goodwill"): it spans the group. The
+                 * smallest group whose center matches is taken.
+                 */
+                auto group_of = [&](const LSeg & v, int & bc, int & bs) {
+                    for (int c = first_value_col; c < ncols; ++c)
+                        if (cl[c] <= cr[c] && v.box.cx() >= cl[c] - 0.2 * v.em && v.box.cx() <= cr[c] + 0.2 * v.em)
+                            return false; // over the values of a column
+                    bc = -1;
+                    bs = 0;
+                    double best = 1e30;
+                    for (int sz = 2; sz <= ncols - first_value_col && bc < 0; ++sz)
+                        for (int a = first_value_col; a + sz <= ncols; ++a)
+                        {
+                            int b = a + sz - 1;
+                            if (cl[a] > cr[a] || cl[b] > cr[b])
+                                continue;
+                            double gl = min(cl[a], hl[a]), gr = max(cr[b], hr[b]);
+                            double d = abs(v.box.cx() - (gl + gr) / 2);
+                            if (d <= max(0.75 * v.em, 0.1 * (gr - gl)) && d < best)
+                            {
+                                best = d;
+                                bc = a;
+                                bs = sz;
+                            }
+                        }
+                    if (getenv("P2H_SEM_DEBUG"))
+                        fprintf(stderr, "  group span '%s' x %.1f-%.1f: col %d span %d\n", chars_text(in.chars, v.chars).c_str(), v.box.x0, v.box.x1, bc, bs);
+                    return bc >= 0;
+                };
                 for (size_t a0 = 0; a0 < heads.size(); )
                 {
                     size_t a1 = a0;
@@ -1736,6 +2151,29 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                     // headings over several columns (group headings, the unit) keep their span
                     if (k > 0 && std::all_of(vals.begin(), vals.end(), [](const LSeg * v) { return v->colspan >= 2; }))
                         k = 0;
+                    // headings centered over a group of adjacent columns span it
+                    if (k > 0)
+                    {
+                        vector<std::pair<int, int>> spans; // col, colspan per heading
+                        for (LSeg * v : vals)
+                        {
+                            int bc, bs;
+                            if (!group_of(*v, bc, bs))
+                                break;
+                            if (!spans.empty() && bc < spans.back().first + spans.back().second)
+                                break; // overlapping groups
+                            spans.emplace_back(bc, bs);
+                        }
+                        if (spans.size() == vals.size())
+                        {
+                            for (size_t q = 0; q < vals.size(); ++q)
+                            {
+                                vals[q]->col = spans[q].first;
+                                vals[q]->colspan = spans[q].second;
+                            }
+                            k = 0;
+                        }
+                    }
                     if (k > 0 && k <= m)
                     {
                         const double INF = 1e30;
@@ -1769,7 +2207,45 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                             j = from[i][j];
                         }
                     }
+                    for (LSeg * v : vals)
+                        if (v->colspan == 1)
+                        {
+                            hl[v->col] = min(hl[v->col], v->box.x0);
+                            hr[v->col] = max(hr[v->col], v->box.x1);
+                        }
                     a0 = a1;
+                }
+
+                /*
+                 * Lines without numbers between the headings and the first numbers
+                 * (the unit "(in thousands)") are centered over their group the same
+                 * way.
+                 */
+                double first_number = 1e30;
+                for (const auto & ls : lsegs)
+                    if (ls.numeric && ls.col >= first_value_col && !(label_extended && ls.col == 0)
+                            && !ls.chars.empty() && !heading_chars.count(ls.chars.front()))
+                        first_number = min(first_number, ls.box.y0);
+                vector<LSeg *> units;
+                for (auto & ls : lsegs)
+                    if (!ls.numeric && !ls.chars.empty() && !heading_chars.count(ls.chars.front()) && ls.colspan == 1
+                            && ls.col >= first_value_col && ls.box.y1 <= first_number && !heads.empty()
+                            && ls.box.y0 >= heads.front()->box.y0)
+                        units.push_back(&ls);
+                for (LSeg * u : units)
+                {
+                    // the line must not hold a number
+                    bool number = false;
+                    for (const auto & ls : lsegs)
+                        if (ls.numeric && abs(ls.box.cy() - u->box.cy()) < 0.3 * u->em
+                                && !is_year_text(chars_text(in.chars, ls.chars)))
+                            number = true;
+                    int bc, bs;
+                    if (!number && group_of(*u, bc, bs))
+                    {
+                        u->col = bc;
+                        u->colspan = bs;
+                    }
                 }
             }
 
@@ -1840,6 +2316,7 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
             i = best_j;
         }
     }
+    split_repeated_headings(in, tables);
     return tables;
 }
 

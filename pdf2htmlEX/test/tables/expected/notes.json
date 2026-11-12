@@ -1,0 +1,209 @@
+{
+ "tables": [
+  {
+   "page": 1,
+   "source": "hrules",
+   "rows": 6,
+   "cols": 5,
+   "cells": [
+    [
+     "Brend",
+     "Goodwill",
+     "Brend",
+     "Goodwill"
+    ],
+    [
+     {
+      "text": "2025.",
+      "rs": 1,
+      "cs": 2
+     },
+     {
+      "text": "2024.",
+      "rs": 1,
+      "cs": 2
+     }
+    ],
+    [
+     {
+      "text": "(u tisućama eura)",
+      "rs": 1,
+      "cs": 2
+     },
+     {
+      "text": "(u tisućama eura)",
+      "rs": 1,
+      "cs": 2
+     }
+    ],
+    [
+     "Teretni program",
+     "-",
+     "191",
+     "-",
+     "191"
+    ],
+    [
+     "Auto program",
+     "7.073",
+     "591",
+     "7.073",
+     "591"
+    ],
+    [
+     "7.073",
+     "782",
+     "7.073",
+     "782"
+    ]
+   ]
+  },
+  {
+   "page": 1,
+   "source": "hrules",
+   "rows": 6,
+   "cols": 4,
+   "cells": [
+    [
+     "(u tisućama eura)",
+     "Brend",
+     "Software",
+     "Ukupno"
+    ],
+    [
+     "Razdoblje od datuma stjecanja do 31. prosinca 2024."
+    ],
+    [
+     "Prihod od prodaje",
+     "6.904",
+     "629",
+     "7.533"
+    ],
+    [
+     "Neto knjigovodstvena vrijednost Na 31. prosinca 2025.",
+     "7.073",
+     "2.730",
+     "9.803"
+    ],
+    [
+     "Amortizacija",
+     "-",
+     "669",
+     "669"
+    ],
+    [
+     "13.977",
+     "4.028",
+     "18.005"
+    ]
+   ]
+  },
+  {
+   "page": 1,
+   "source": "hrules",
+   "rows": 5,
+   "cols": 3,
+   "cells": [
+    [
+     "Prihodi od prodaje",
+     "2025.",
+     "2024."
+    ],
+    [
+     {
+      "text": "(u tisućama eura)",
+      "rs": 1,
+      "cs": 2
+     }
+    ],
+    [
+     "Većinski dioničar",
+     "1.008",
+     "594"
+    ],
+    [
+     "Ulaganja po metodi udjela",
+     "58",
+     "98"
+    ],
+    [
+     "1.066",
+     "692"
+    ]
+   ]
+  },
+  {
+   "page": 1,
+   "source": "hrules",
+   "rows": 5,
+   "cols": 3,
+   "cells": [
+    [
+     "Troškovi prodane robe",
+     "2025.",
+     "2024."
+    ],
+    [
+     {
+      "text": "(u tisućama eura)",
+      "rs": 1,
+      "cs": 2
+     }
+    ],
+    [
+     "Većinski dioničar",
+     "1.765",
+     "1.394"
+    ],
+    [
+     "Ulaganja po metodi udjela",
+     "54",
+     "92"
+    ],
+    [
+     "1.819",
+     "1.486"
+    ]
+   ]
+  },
+  {
+   "page": 1,
+   "source": "hrules",
+   "rows": 5,
+   "cols": 3,
+   "cells": [
+    [
+     "Krediti i zajmovi",
+     "2025.",
+     "2024."
+    ],
+    [
+     {
+      "text": "(u tisućama eura)",
+      "rs": 1,
+      "cs": 2
+     }
+    ],
+    [
+     "Većinski dioničar",
+     "3.805",
+     "4.644"
+    ],
+    [
+     "Ulaganja po metodi udjela",
+     "-",
+     "-"
+    ],
+    [
+     "3.805",
+     "4.644"
+    ]
+   ]
+  }
+ ],
+ "paragraphs": [
+  "Goodwill i brendovi alocirani su na sljedeće segmente:",
+  "Kretanje nematerijalne imovine bilo je kako slijedi:",
+  "Transakcije s povezanim stranama:"
+ ]
+}

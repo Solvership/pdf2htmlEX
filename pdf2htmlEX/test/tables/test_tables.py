@@ -150,6 +150,29 @@ class TableTests(unittest.TestCase):
         self.assertEqual(tables[1]['cells'][0], ['2025.', '2024.'])
         self.assertEqual(tables[1]['rows'], 5)
 
+    def test_notes_headings_over_two_columns(self):
+        # a year and the unit centered over "Brend | Goodwill" span both columns
+        t = self.results['notes']['tables'][0]
+        self.assertEqual(t['cells'][0], ['Brend', 'Goodwill', 'Brend', 'Goodwill'])
+        self.assertEqual(t['cells'][1], [{'text': '2025.', 'rs': 1, 'cs': 2}, {'text': '2024.', 'rs': 1, 'cs': 2}])
+        self.assertEqual(t['cells'][2][0], {'text': '(u tisućama eura)', 'rs': 1, 'cs': 2})
+
+    def test_notes_wrapped_label_last_line_upper_case(self):
+        t = self.results['notes']['tables'][1]
+        # a wrapped heading ending with a full stop stays a row of its own ...
+        self.assertEqual(t['cells'][1], ['Razdoblje od datuma stjecanja do 31. prosinca 2024.'])
+        # ... a wrapped label is one row with the numbers on its last line
+        self.assertEqual(t['cells'][3], ['Neto knjigovodstvena vrijednost Na 31. prosinca 2025.', '7.073', '2.730', '9.803'])
+        self.assertEqual(t['rows'], 6)
+
+    def test_notes_stacked_tables_stay_separate(self):
+        tables = self.results['notes']['tables'][2:]
+        self.assertEqual([t['cells'][0][0] for t in tables],
+                         ['Prihodi od prodaje', 'Troškovi prodane robe', 'Krediti i zajmovi'])
+        for t in tables:
+            self.assertEqual(t['rows'], 5)
+            self.assertEqual(t['cells'][1], [{'text': '(u tisućama eura)', 'rs': 1, 'cs': 2}])
+
     def test_chart_is_not_a_table(self):
         self.assertEqual(self.results['chart']['tables'], [])
 
