@@ -153,3 +153,19 @@ Godišnje izvješće (InDesign, netagirano, 170 stranica). Ispravljeno u detekci
 Rezultat: 87 tablica (57 hrules, 30 ruled, 6 nastavaka preko stranica), ručno uspoređeno s `pdftotext -layout` (skripta za usporedbu nije u repou
 jer je dokument privatan). Novi testovi: `financial`, `chart`. Bez semantike i dalje bajt-identično
 masteru (22 PDF-a uključujući ovaj dokument), sa semantikom pikselski identično (14 stranica).
+
+Druga runda (preostala ograničenja):
+
+* ponovljeno zaglavlje nakon redova s brojevima (isti tekstovi po stupcima ili ≥ 2 godine) dijeli
+  hrules tablicu (`split_repeated_headings`); redovi zaglavlja na kraju tablice prelaze u tablicu
+  odmah ispod (linija ispod tuđeg zaglavlja zatvorila je prethodnu); višeretčano zaglavlje novog
+  dijela spaja se u jedan red;
+* naslov centriran između vrijednosti skupine stupaca (rubovi skupine = brojevi + već dodijeljeni
+  naslovi) dobiva colspan; isto i red jedinice između naslova i prvih brojeva;
+* redak koji sadrži samo tekst preko više stupaca ispod užih naslova je zaseban red (u bandu);
+* prelomljeni naziv bez brojeva (≥ 2 retka, zadnji ne završava s `.`/`:`) dovršava se sljedećim
+  retkom s brojevima i kad on počinje velikim slovom;
+* `pdf2htmlEX-semantic.js`: prikaz prepoznatih tablica (tipka T, `#tables`).
+
+Rezultat: 90 tablica (60 hrules, 30 ruled, 6 nastavaka). Promijenjene su samo stranice 125, 136,
+153 i 157 (provjereno usporedbom svih tablica prije/poslije). Test `notes` pokriva sva tri slučaja.

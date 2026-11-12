@@ -68,7 +68,12 @@ mjerenjem (`scripts/fidelity_metric.py`, raster PDF-a naspram rendera HTML-a):
      naslove stupaca u više redaka i naslove skupina preko više stupaca („Prihodi segmenta”);
    * red s jedinicom („(u tisućama eura)”) i redovi zbrojeva bez naziva su zasebni redovi;
    * dvije tablice iste širine razdvojene rečenicom („… kako slijedi:”) ili naslovom ostaju
-     dvije tablice.
+     dvije tablice;
+   * male tablice istih stupaca jedna ispod druge, svaka sa svojim zaglavljem, ostaju zasebne
+     tablice: red zaglavlja koji nakon redova s brojevima ponavlja zaglavlje tablice (iste
+     tekstove ili godine) započinje novu tablicu;
+   * naslov centriran iznad skupine stupaca, između njihovih vrijednosti (npr. „2025.” iznad
+     „Brend | Goodwill”, ili „(u tisućama eura)”), proteže se preko cijele skupine (colspan).
 4. **stream** (samo uz `all`): tablice bez ikakvih linija, iz poravnanja teksta. Ovo je
    heuristika, pa je isključena dok je ne zatražite.
 
@@ -76,7 +81,10 @@ mjerenjem (`scripts/fidelity_metric.py`, raster PDF-a naspram rendera HTML-a):
 redak teksta i uz njega postoji tekst u barem još jednom stupcu. Redak teksta koji je sam u
 prvom stupcu nastavak je prelomljenog teksta, osim ako počinje **velikim slovom**: tada je to
 naslov odjeljka („Kratkotrajna imovina”) ili prvi redak naziva čiji su brojevi u zadnjem retku
-(sljedeći redak koji počinje malim slovom ga dovršava). Brojevi se ne prelamaju: broj ispod
+(sljedeći redak koji počinje malim slovom ga dovršava). Naziv koji se već prelomio u drugi
+redak širok je kao njegov stupac, pa nije naslov odjeljka: njegov zadnji redak (s brojevima)
+smije počinjati i velikim slovom („Neto knjigovodstvena / vrijednost / Na 31. prosinca”), osim ako
+prelomljeni dio završava točkom ili dvotočkom (tada je to cjelovit naslov). Brojevi se ne prelamaju: broj ispod
 broja u istom stupcu uvijek je novi red. Ovo se koristi samo tamo gdje linije ne razdvajaju
 retke.
 
@@ -114,6 +122,26 @@ na sljedećoj stranici prepoznaje se kao `repeated_header`.
   </div>
   ```
 
+## Kako vidjeti prepoznate tablice
+
+Semantički sloj je **namjerno nevidljiv**: stranica izgleda točno kao PDF. U `dokument.html`
+postoje tri dijela:
+
+* vidljivi retci teksta (`div.t`) s atributima `data-tbl`/`data-r`/`data-c` ili `data-sem` (kojoj
+  ćeliji pripada koji dio retka);
+* po stranici skriveni `<div class="pdf2htmlEX-semantic" hidden>` s pravim `<table>` i `<p>`.
+  `hidden` znači da ga preglednik ne prikazuje; služi za kopiranje, čitače ekrana i strojnu
+  obradu (npr. `document.querySelectorAll('.pdf2htmlEX-semantic table')`);
+* `pdf2htmlEX-semantic.js` za kopiranje i prikaz tablica.
+
+Da biste u pregledniku vidjeli što je prepoznato, pritisnite tipku **T** (ili otvorite
+`dokument.html#tables`). Preko stranice se iscrtava okvir svake tablice s oznakom
+(`p104t0 · 28×10` = stranica 104, tablica 0, 28 redova × 10 stupaca) i obojena ćelija za svaki
+dio teksta (prijeđite mišem preko ćelije za njezin red i stupac). Ponovni pritisak na T sakriva
+prikaz. Bez toga se ništa ne iscrtava.
+
+Za pregled samo tablica otvorite `dokument.tables.html`.
+
 ## Kopiranje iz preglednika
 
 Kad je semantički sloj uključen, u HTML se ugrađuje `pdf2htmlEX-semantic.js`. Označite dio
@@ -123,17 +151,14 @@ Retci istog odlomka spajaju se razmakom umjesto prijeloma retka.
 
 ## Ograničenja
 
-Isprobano na stvarnom dokumentu (godišnje izvješće, InDesign, 170 stranica, 87 tablica:
+Isprobano na stvarnom dokumentu (godišnje izvješće, InDesign, 170 stranica, 90 tablica:
 mreže linija, zebra tablice, financijski izvještaji i bilješke, tablice preko stranica,
-rotirana zaglavlja, grafikoni). Preostala odstupanja:
+rotirana zaglavlja, grafikoni). Na njemu nema poznatih pogrešaka u tablicama. Općenita
+ograničenja:
 
-* Uzastopne tablice s istim stupcima i istim linijama (npr. tri male tablice jedna ispod druge,
-  svaka sa svojim naslovom i godinama) spajaju se u jednu, a naslovi postaju redovi.
-* Pravilo velikog slova: prelomljeni naziv čiji drugi redak počinje velikim slovom (osobno ime,
-  kratica) postaje dva reda.
-* Naslov stupca centriran iznad dva stupca bez linije (npr. „2025.” iznad „Brend | Goodwill”)
-  pripisuje se jednom stupcu.
-
+* Pravilo velikog slova je heuristika: naziv u **jednom** retku bez brojeva koji počinje velikim
+  slovom smatra se naslovom odjeljka. Ako mu se drugi redak (s brojevima) također piše velikim
+  slovom (osobno ime, kratica), dobit će se dva reda.
 * **stream** detektor je heuristika. Testiran je i ne prepoznaje tablice u običnom tekstu
   ni u dvostupčanom prijelomu, ali na neobičnim rasporedima može pogriješiti.
 * Kod tablica bez linija između redaka, red u kojem je popunjen samo prvi stupac spaja se s

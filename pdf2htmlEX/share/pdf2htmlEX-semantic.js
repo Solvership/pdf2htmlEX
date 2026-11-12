@@ -190,6 +190,126 @@
 
   document.addEventListener('copy', onCopy);
 
+  /*
+   * Table overlay: shows the detected tables and cells over the page (the
+   * semantic layer itself is invisible). Toggled with the "t" key, or shown
+   * from the start with "#tables" in the URL. Nothing is drawn otherwise.
+   */
+  var COLORS = ['#d62728', '#1f77b4', '#2ca02c', '#9467bd', '#ff7f0e', '#17becf'];
+  var overlayOn = false;
+
+  // range of the text offsets [s, e) of a line div
+  function textRange(div, s, e) {
+    var r = document.createRange();
+    var walker = document.createTreeWalker(div, NodeFilter.SHOW_TEXT, null, false);
+    var pos = 0, node, started = false;
+    while ((node = walker.nextNode())) {
+      var len = node.nodeValue.length;
+      if (!started && s <= pos + len) { r.setStart(node, s - pos); started = true; }
+      if (started && e <= pos + len) { r.setEnd(node, e - pos); return r; }
+      pos += len;
+    }
+    return started ? r : null;
+  }
+
+  function removeOverlay() {
+    var old = document.querySelectorAll('.pdf2htmlEX-sem-overlay');
+    for (var i = 0; i < old.length; ++i) old[i].parentNode.removeChild(old[i]);
+  }
+
+  function box(page, cls, x0, y0, x1, y1, color, alpha) {
+    var d = document.createElement('div');
+    d.className = 'pdf2htmlEX-sem-overlay ' + cls;
+    d.style.cssText = 'position:absolute;pointer-events:none;z-index:10;box-sizing:border-box;' +
+      'left:' + x0 + 'px;top:' + y0 + 'px;width:' + (x1 - x0) + 'px;height:' + (y1 - y0) + 'px;' +
+      'border:1px solid ' + color + ';background:' + color.replace(/^#(..)(..)(..)$/, function (m, r, g, b) {
+        return 'rgba(' + parseInt(r, 16) + ',' + parseInt(g, 16) + ',' + parseInt(b, 16) + ',' + alpha + ')';
+      });
+    page.appendChild(d);
+    return d;
+  }
+
+  function drawOverlay() {
+    removeOverlay();
+    if (!overlayOn) return;
+    var root = document.getElementById('page-container') || document.body;
+    var lines = root.querySelectorAll('.t[data-sem], .t[data-tbl]');
+    var cells = {}, tables = {}, order = [];
+    function add(map, key, page, rc, extra) {
+      var pr = page.getBoundingClientRect();
+      var b = map[key];
+      if (!b) { b = map[key] = { page: page, x0: 1e9, y0: 1e9, x1: -1e9, y1: -1e9 }; for (var k in extra) b[k] = extra[k]; }
+      b.x0 = Math.min(b.x0, rc.left - pr.left); b.y0 = Math.min(b.y0, rc.top - pr.top);
+      b.x1 = Math.max(b.x1, rc.right - pr.left); b.y1 = Math.max(b.y1, rc.bottom - pr.top);
+    }
+    for (var i = 0; i < lines.length; ++i) {
+      var div = lines[i];
+      var page = div.closest('.pf');
+      if (!page) continue;
+      var parts = [];
+      var sem = div.getAttribute('data-sem');
+      if (sem) {
+        var rs = parseSem(sem);
+        for (var k = 0; k < rs.length; ++k) if (rs[k].tbl) parts.push({ e: rs[k], range: textRange(div, rs[k].start, rs[k].end) });
+      } else {
+        var key = lineKey(div);
+        var r = document.createRange(); r.selectNodeContents(div);
+        parts.push({ e: key, range: r });
+      }
+      for (var p = 0; p < parts.length; ++p) {
+        if (!parts[p].range) continue;
+        var e = parts[p].e;
+        var rects = parts[p].range.getClientRects();
+        for (var q = 0; q < rects.length; ++q) {
+          if (rects[q].width <= 0 || rects[q].height <= 0) continue;
+          if (!tables[e.tbl]) order.push(e.tbl);
+          add(cells, e.tbl + '|' + e.r + '|' + e.c, page, rects[q], { tbl: e.tbl, r: e.r, c: e.c });
+          add(tables, e.tbl, page, rects[q], { rows: 0, cols: 0 });
+          tables[e.tbl].rows = Math.max(tables[e.tbl].rows, e.r + 1);
+          tables[e.tbl].cols = Math.max(tables[e.tbl].cols, e.c + 1);
+        }
+      }
+    }
+    for (var t = 0; t < order.length; ++t) {
+      var tb = tables[order[t]];
+      tb.color = COLORS[t % COLORS.length];
+      var frame = box(tb.page, 'pdf2htmlEX-sem-table', tb.x0 - 4, tb.y0 - 4, tb.x1 + 4, tb.y1 + 4, tb.color, 0);
+      frame.style.borderWidth = '2px';
+      var label = document.createElement('span');
+      label.textContent = order[t] + ' · ' + tb.rows + '×' + tb.cols;
+      label.style.cssText = 'position:absolute;right:0;bottom:100%;font:11px/1.3 sans-serif;color:#fff;padding:0 4px;background:' + tb.color;
+      frame.appendChild(label);
+    }
+    for (var key2 in cells) {
+      var c = cells[key2];
+      var cell = box(c.page, 'pdf2htmlEX-sem-cell', c.x0 - 1, c.y0 - 1, c.x1 + 1, c.y1 + 1, tables[c.tbl].color, c.r % 2 ? 0.18 : 0.08);
+      cell.title = c.tbl + ' r' + c.r + ' c' + c.c;
+    }
+  }
+
+  var pending = 0;
+  function redraw() {
+    if (!overlayOn || pending) return;
+    pending = setTimeout(function () { pending = 0; drawOverlay(); }, 150);
+  }
+
+  function toggleOverlay(on) {
+    overlayOn = (on === undefined) ? !overlayOn : on;
+    drawOverlay();
+  }
+
+  document.addEventListener('keydown', function (ev) {
+    var tg = ev.target && ev.target.tagName;
+    if (ev.ctrlKey || ev.metaKey || ev.altKey || tg === 'INPUT' || tg === 'TEXTAREA' || tg === 'SELECT') return;
+    if (ev.key === 't' || ev.key === 'T') toggleOverlay();
+  });
+  // the viewer rescales the pages on resize and zoom
+  window.addEventListener('resize', redraw);
+  window.addEventListener('wheel', function (ev) { if (ev.ctrlKey) redraw(); }, { passive: true });
+  window.addEventListener('load', function () {
+    if (/(^#|[#&])tables\b/.test(location.hash)) toggleOverlay(true);
+  });
+
   // exported for tests
-  window.pdf2htmlEXSemantic = { collectPieces: collectPieces, onCopy: onCopy };
+  window.pdf2htmlEXSemantic = { collectPieces: collectPieces, onCopy: onCopy, toggleOverlay: toggleOverlay };
 })();
