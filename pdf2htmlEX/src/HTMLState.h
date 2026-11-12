@@ -6,6 +6,7 @@
 #define HTMLSTATE_H__
 
 #include <functional>
+#include <vector>
 
 #include "Color.h"
 
@@ -33,6 +34,12 @@ struct FontInfo
      * The value is 1 for other fonts
      */
     double font_size_scale;
+
+    /*
+     * Semantic layer only: char codes whose glyph draws nothing (spaces).
+     * Used for the semantic text when the PDF has no unicode for the code.
+     */
+    std::vector<bool> blank_codes;
 };
 
 struct HTMLTextState

@@ -190,6 +190,41 @@ void DrawingTracer::do_path(GfxState * state, const GfxPath * path)
     }
 }
 
+/*
+ * Clip an axis-aligned segment to a box; false if nothing is left.
+ * Other segments are kept as they are (they are not rules anyway).
+ */
+static bool clip_segment(const double * cbox, double & x0, double & y0, double & x1, double & y1)
+{
+    const double eps = 0.01;
+    if (std::abs(y0 - y1) < eps)
+    {
+        if (y0 < cbox[1] - eps || y0 > cbox[3] + eps)
+            return false;
+        double lo = std::max(std::min(x0, x1), cbox[0]), hi = std::min(std::max(x0, x1), cbox[2]);
+        if (lo > hi)
+            return false;
+        x0 = lo;
+        x1 = hi;
+    }
+    else if (std::abs(x0 - x1) < eps)
+    {
+        if (x0 < cbox[0] - eps || x0 > cbox[2] + eps)
+            return false;
+        double lo = std::max(std::min(y0, y1), cbox[1]), hi = std::min(std::max(y0, y1), cbox[3]);
+        if (lo > hi)
+            return false;
+        y0 = lo;
+        y1 = hi;
+    }
+    return true;
+}
+
+static bool is_white(const GfxRGB & rgb)
+{
+    return colToDbl(rgb.r) > 0.97 && colToDbl(rgb.g) > 0.97 && colToDbl(rgb.b) > 0.97;
+}
+
 void DrawingTracer::stroke(GfxState * state)
 {
     if (!tracing())
@@ -201,6 +236,12 @@ void DrawingTracer::stroke(GfxState * state)
         double lwx = sqrt(0.5), lwy = sqrt(0.5);
         tm_transform(ctm_stack.back(), lwx, lwy, true);
         double lw = sqrt(lwx * lwx + lwy * lwy) * state->getLineWidth();
+        GfxRGB rgb;
+        state->getStrokeRGB(&rgb);
+        bool white = is_white(rgb);
+        // only the visible part: clipped to the current clip area
+        double cbox[4];
+        cairo_clip_extents(cairo, cbox, cbox + 1, cbox + 2, cbox + 3);
         const GfxPath * path = state->getPath();
         for (int i = 0; i < path->getNumSubpaths(); ++i) {
             const GfxSubpath * subpath = path->getSubpath(i);
@@ -219,7 +260,9 @@ void DrawingTracer::stroke(GfxState * state)
                 }
                 double x = subpath->getX(j), y = subpath->getY(j);
                 xform_pt(x, y);
-                on_rule_drawn(px, py, x, y, lw, RULE_STROKE);
+                double x0 = px, y0 = py, x1 = x, y1 = y;
+                if (clip_segment(cbox, x0, y0, x1, y1))
+                    on_rule_drawn(x0, y0, x1, y1, lw, RULE_STROKE, white);
                 px = x;
                 py = y;
                 ++j;
@@ -322,7 +365,11 @@ void DrawingTracer::fill(GfxState * state, bool even_odd)
         return;
 
     if (on_rule_drawn && state->getFillOpacity() > 0)
-        emit_fill_rects(state->getPath());
+    {
+        GfxRGB rgb;
+        state->getFillRGB(&rgb);
+        emit_fill_rects(state->getPath(), is_white(rgb));
+    }
 
     if (!param.correct_text_visibility)
         return;
@@ -346,8 +393,10 @@ void DrawingTracer::fill(GfxState * state, bool even_odd)
 }
 
 // Report every axis-aligned rectangular subpath of a filled path
-void DrawingTracer::emit_fill_rects(const GfxPath * path)
+void DrawingTracer::emit_fill_rects(const GfxPath * path, bool white)
 {
+    double cbox[4];
+    cairo_clip_extents(cairo, cbox, cbox + 1, cbox + 2, cbox + 3);
     for (int i = 0; i < path->getNumSubpaths(); ++i) {
         const GfxSubpath * subpath = path->getSubpath(i);
         int n = subpath->getNumPoints();
@@ -377,7 +426,14 @@ void DrawingTracer::emit_fill_rects(const GfxPath * path)
         double x1 = std::max(std::max(xs[0], xs[1]), std::max(xs[2], xs[3]));
         double y0 = std::min(std::min(ys[0], ys[1]), std::min(ys[2], ys[3]));
         double y1 = std::max(std::max(ys[0], ys[1]), std::max(ys[2], ys[3]));
-        on_rule_drawn(x0, y0, x1, y1, 0, RULE_FILL);
+        // only the visible part
+        x0 = std::max(x0, cbox[0]);
+        y0 = std::max(y0, cbox[1]);
+        x1 = std::min(x1, cbox[2]);
+        y1 = std::min(y1, cbox[3]);
+        if (x0 > x1 || y0 > y1)
+            continue;
+        on_rule_drawn(x0, y0, x1, y1, 0, RULE_FILL, white);
     }
 }
 
@@ -514,6 +570,8 @@ void DrawingTracer::draw_char(GfxState *state, double x, double y, double width,
 //printf("final_m = %f,%f,%f,%f,%f,%f\n", final_m[0], final_m[1], final_m[2], final_m[3], final_m[4], final_m[5]);
     double final_after_ctm[6];
     tm_multiply(final_after_ctm, ctm_stack.back(), final_m);
+    last_char_dir[0] = final_after_ctm[0];
+    last_char_dir[1] = final_after_ctm[1];
 //printf("final_after_ctm= %f,%f,%f,%f,%f,%f\n", final_after_ctm[0], final_after_ctm[1], final_after_ctm[2], final_after_ctm[3], final_after_ctm[4], final_after_ctm[5]);
     double inset = 0.1;
     double bbox[4] {inset*width, inset*height, (1-inset)*width, (1-inset)*height};

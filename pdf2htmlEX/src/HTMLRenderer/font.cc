@@ -800,6 +800,13 @@ void HTMLRenderer::embed_font(const string & filepath, GfxFont * font, FontInfo 
                 width_list[mapped_code] = (int)floor(cur_width * info.em_size + 0.5);
             }
 
+            if(param.semantic_tables && ffw_is_blank_glyph(mapped_code) == 1)
+            {
+                if((int)info.blank_codes.size() <= cur_code)
+                    info.blank_codes.resize(cur_code + 1, false);
+                info.blank_codes[cur_code] = true;
+            }
+
             if(param.debug)
             {
                 map_outf << hex << cur_code << ' ' << mapped_code << ' ' << u << endl;

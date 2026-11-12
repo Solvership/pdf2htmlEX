@@ -22,6 +22,18 @@ static double vertical_overlap(const Box & a, const Box & b)
     return min(a.y1, b.y1) - max(a.y0, b.y0);
 }
 
+Box reading_box(const Char & c)
+{
+    const Box & b = c.box;
+    switch (c.dir)
+    {
+        case 1: return Box(-b.y1, b.x0, -b.y0, b.x1);  // bottom to top, next line to the right
+        case 2: return Box(-b.x1, -b.y1, -b.x0, -b.y0); // upside down
+        case 3: return Box(b.y0, -b.x1, b.y1, -b.x0);  // top to bottom, next line to the left
+        default: return b;
+    }
+}
+
 vector<VLine> build_visual_lines(const vector<Char> & chars, const vector<int> & subset)
 {
     vector<int> order;
@@ -30,20 +42,24 @@ vector<VLine> build_visual_lines(const vector<Char> & chars, const vector<int> &
         if (chars[i].box.valid() && !chars[i].text.empty())
             order.push_back(i);
 
+    // rotated text is laid out in its own reading frame
     std::stable_sort(order.begin(), order.end(), [&](int a, int b) {
-        return chars[a].box.cy() < chars[b].box.cy();
+        return reading_box(chars[a]).cy() < reading_box(chars[b]).cy();
     });
 
     vector<VLine> lines;
+    vector<Box> rboxes; // line boxes in the reading frame
     for (int i : order)
     {
-        const Box & cb = chars[i].box;
+        const Box cb = reading_box(chars[i]);
         double ch = max(cb.h(), 0.01);
         // the char joins one of the most recent lines if it overlaps vertically enough
         int found = -1;
         for (int k = (int)lines.size() - 1; k >= 0 && k >= (int)lines.size() - 3; --k)
         {
-            const Box & lb = lines[k].box;
+            if (lines[k].dir != chars[i].dir)
+                continue;
+            const Box & lb = rboxes[k];
             double ov = vertical_overlap(cb, lb);
             if (ov >= 0.5 * min(ch, max(lb.h(), 0.01)))
             {
@@ -54,15 +70,18 @@ vector<VLine> build_visual_lines(const vector<Char> & chars, const vector<int> &
         if (found < 0)
         {
             lines.emplace_back();
-            lines.back().box = cb;
+            lines.back().box = chars[i].box;
+            lines.back().dir = chars[i].dir;
+            rboxes.push_back(cb);
             found = (int)lines.size() - 1;
         }
         lines[found].chars.push_back(i);
-        lines[found].box.expand(cb);
+        lines[found].box.expand(chars[i].box);
+        rboxes[found].expand(cb);
     }
 
     // order chars inside each line: keep the drawing order of chars coming from
-    // the same HTML line (it is the logical order), order runs by x
+    // the same HTML line (it is the logical order), order runs along the baseline
     for (auto & l : lines)
     {
         // build runs
@@ -77,7 +96,7 @@ vector<VLine> build_visual_lines(const vector<Char> & chars, const vector<int> &
                 const Char & last = chars[runs.back().back()];
                 const Char & c = chars[i];
                 // continue the run if same HTML line and not jumping backwards
-                if (last.line == c.line && c.line >= 0 && c.box.x0 >= last.box.x0 - 0.5 * max(last.em, 1.0))
+                if (last.line == c.line && c.line >= 0 && reading_box(c).x0 >= reading_box(last).x0 - 0.5 * max(last.em, 1.0))
                 {
                     runs.back().push_back(i);
                     appended = true;
@@ -87,7 +106,7 @@ vector<VLine> build_visual_lines(const vector<Char> & chars, const vector<int> &
                 runs.push_back({i});
         }
         std::stable_sort(runs.begin(), runs.end(), [&](const vector<int> & a, const vector<int> & b) {
-            return chars[a.front()].box.x0 < chars[b.front()].box.x0;
+            return reading_box(chars[a.front()]).x0 < reading_box(chars[b.front()]).x0;
         });
         l.chars.clear();
         double em_sum = 0;
@@ -100,15 +119,30 @@ vector<VLine> build_visual_lines(const vector<Char> & chars, const vector<int> &
         l.em = l.chars.empty() ? 0 : em_sum / l.chars.size();
     }
 
-    std::stable_sort(lines.begin(), lines.end(), [](const VLine & a, const VLine & b) {
-        return a.box.cy() < b.box.cy();
+    // top to bottom; lines of rotated text (all in the same direction) in their reading order
+    bool same_rotated = !lines.empty() && lines[0].dir != 0;
+    for (const auto & l : lines)
+        if (l.dir != lines[0].dir)
+            same_rotated = false;
+    vector<size_t> idx(lines.size());
+    for (size_t k = 0; k < idx.size(); ++k)
+        idx[k] = k;
+    std::stable_sort(idx.begin(), idx.end(), [&](size_t a, size_t b) {
+        if (same_rotated)
+            return rboxes[a].cy() < rboxes[b].cy();
+        return lines[a].box.cy() < lines[b].box.cy();
     });
-    return lines;
+    vector<VLine> out;
+    out.reserve(lines.size());
+    for (size_t k : idx)
+        out.push_back(std::move(lines[k]));
+    return out;
 }
 
 vector<Segment> split_segments(const vector<Char> & chars, const VLine & line, double gap_em)
 {
     vector<Segment> segs;
+    double seg_end = 0; // end of the last segment along the baseline
     for (int i : line.chars)
     {
         const Char & c = chars[i];
@@ -119,21 +153,23 @@ vector<Segment> split_segments(const vector<Char> & chars, const VLine & line, d
                 segs.back().chars.push_back(i);
             continue;
         }
+        const Box rb = reading_box(c);
         bool new_seg = segs.empty();
         if (!new_seg)
         {
-            const Segment & s = segs.back();
             double em = max(max(c.em, line.em), 1.0);
-            if (c.box.x0 - s.box.x1 > gap_em * em)
+            if (rb.x0 - seg_end > gap_em * em)
                 new_seg = true;
         }
         if (new_seg)
         {
             segs.emplace_back();
             segs.back().box = c.box;
+            seg_end = rb.x1;
         }
         segs.back().chars.push_back(i);
         segs.back().box.expand(c.box);
+        seg_end = max(seg_end, rb.x1);
     }
     // drop trailing spaces
     for (auto & s : segs)
@@ -155,7 +191,7 @@ string chars_text(const vector<Char> & chars, const vector<int> & seq)
         {
             bool space = false;
             double em = max(max(c.em, prev->em), 1.0);
-            bool gap = (c.box.x0 - prev->box.x1) > 0.28 * em;
+            bool gap = (reading_box(c).x0 - reading_box(*prev).x1) > 0.28 * em;
             if (prev->line == c.line && c.line >= 0 && c.index == prev->index + 1)
                 space = c.space_before;
             else

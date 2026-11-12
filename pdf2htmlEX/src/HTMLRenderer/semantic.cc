@@ -87,6 +87,17 @@ void HTMLRenderer::analyze_page_semantics(void)
                               std::max(std::max(xa, xb), std::max(xc, xd)), std::max(std::max(ya, yb), std::max(yc, yd)));
         if (i < (int)char_mcids.size())
             c.mcid = char_mcids[i];
+        if (2 * i + 1 < (int)char_dirs.size())
+        {
+            // baseline direction in visual space (y down)
+            double dx = char_dirs[2 * i], dy = char_dirs[2 * i + 1];
+            double vx = default_ctm[0] * dx + default_ctm[2] * dy;
+            double vy = -(default_ctm[1] * dx + default_ctm[3] * dy);
+            if (std::abs(vx) >= std::abs(vy))
+                c.dir = vx >= 0 ? 0 : 2;
+            else
+                c.dir = vy < 0 ? 1 : 3;
+        }
         if (i < (int)char_ems.size())
             c.em = char_ems[i];
     }
@@ -115,6 +126,41 @@ void HTMLRenderer::analyze_page_semantics(void)
     }
 
     // rules
+    /*
+     * Drawings in white are invisible on the (white) page: white cell
+     * backgrounds of spreadsheet exports, white borders... A white line is
+     * kept only on top of a coloured box (white separators in a shaded
+     * header), a white box only next to a coloured area (the white rows of a
+     * zebra striped table).
+     */
+    vector<semantic::Box> coloured_boxes, coloured_areas;
+    for (const auto & r : page_rules)
+    {
+        if (r.kind != DrawingTracer::RULE_FILL || r.white)
+            continue;
+        double x0, y0, x1, y1;
+        to_visual(r.x0, r.y0, x0, y0);
+        to_visual(r.x1, r.y1, x1, y1);
+        semantic::Box b(std::min(x0, x1), std::min(y0, y1), std::max(x0, x1), std::max(y0, y1));
+        if (b.x1 - b.x0 > 0.9 * in.width && b.y1 - b.y0 > 0.9 * in.height)
+            continue; // page background
+        coloured_boxes.push_back(b);
+        if (b.x1 - b.x0 > 3 && b.y1 - b.y0 > 3)
+            coloured_areas.push_back(b);
+    }
+    auto next_to_colour = [&](const semantic::Box & w) {
+        const double tol = 1.0;
+        for (const auto & b : coloured_areas)
+        {
+            bool x_overlap = std::min(w.x1, b.x1) - std::max(w.x0, b.x0) > tol;
+            bool y_overlap = std::min(w.y1, b.y1) - std::max(w.y0, b.y0) > tol;
+            bool x_touch = std::abs(w.x1 - b.x0) <= tol || std::abs(b.x1 - w.x0) <= tol;
+            bool y_touch = std::abs(w.y1 - b.y0) <= tol || std::abs(b.y1 - w.y0) <= tol;
+            if ((x_overlap && y_touch) || (y_overlap && x_touch))
+                return true;
+        }
+        return false;
+    };
     for (const auto & r : page_rules)
     {
         double x0, y0, x1, y1;
@@ -122,6 +168,24 @@ void HTMLRenderer::analyze_page_semantics(void)
         to_visual(r.x1, r.y1, x1, y1);
         if (x0 > x1) std::swap(x0, x1);
         if (y0 > y1) std::swap(y0, y1);
+        if (r.white)
+        {
+            bool keep = false;
+            if (r.kind == DrawingTracer::RULE_FILL)
+                keep = next_to_colour(semantic::Box(x0, y0, x1, y1));
+            else
+            {
+                double mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+                for (const auto & b : coloured_boxes)
+                    if (mx >= b.x0 - 0.5 && mx <= b.x1 + 0.5 && my >= b.y0 - 0.5 && my <= b.y1 + 0.5)
+                    {
+                        keep = true;
+                        break;
+                    }
+            }
+            if (!keep)
+                continue;
+        }
         double w = r.width / zoom;
         // line width in visual space (assume uniform scaling)
         {
@@ -182,7 +246,7 @@ void HTMLRenderer::analyze_page_semantics(void)
     {
         cerr << "semantic: page " << pageNum << ": " << in.chars.size() << " chars, " << in.rules.size() << " rules" << endl;
         for (const auto & r : in.rules)
-            cerr << "  rule " << (r.horizontal ? "H" : "V") << " " << r.x0 << "," << r.y0 << " - " << r.x1 << "," << r.y1 << endl;
+            cerr << "  rule " << (r.horizontal ? "H" : "V") << " " << r.x0 << "," << r.y0 << " - " << r.x1 << "," << r.y1 << " k" << r.kind << endl;
         vector<int> all;
         for (const auto & c : in.chars)
             all.push_back(c.index);

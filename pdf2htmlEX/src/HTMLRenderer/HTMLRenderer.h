@@ -395,6 +395,8 @@ protected:
     void analyze_page_semantics(void);
     // per drawn char (same index as covered_text_detector): marked content id, font size (pt)
     std::vector<int> char_mcids;
+    // baseline direction of each char (tracer space), two values per char
+    std::vector<float> char_dirs;
     std::vector<float> char_ems;
     // per drawn char: the unicode text according to Poppler (ToUnicode / glyph names), UTF-8;
     // differs from the HTML text when pdf2htmlEX had to remap the glyph (private use area)

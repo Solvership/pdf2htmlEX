@@ -511,6 +511,26 @@ void ffw_set_widths(int * width_list, int mapping_len,
     ffwClearAction();
 }
 
+int ffw_is_blank_glyph(int enc)
+{
+    EncMap * map = cur_fv->map;
+    if(enc < 0 || enc >= map->enccount)
+        return -1;
+    int gid = map->map[enc];
+    if(gid < 0 || gid >= cur_fv->sf->glyphcnt)
+        return -1;
+    SplineChar * sc = cur_fv->sf->glyphs[gid];
+    if(sc == NULL)
+        return -1;
+    int ly;
+    for(ly = 0; ly < sc->layer_cnt; ++ly)
+    {
+        if(sc->layers[ly].splines != NULL || sc->layers[ly].refs != NULL || sc->layers[ly].images != NULL)
+            return 0;
+    }
+    return 1;
+}
+
 void ffw_import_svg_glyph(int code, const char * filename, double ox, double oy, double width)
 {
     ffwSetAction("import the glyphs from");

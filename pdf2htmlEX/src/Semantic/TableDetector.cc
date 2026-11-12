@@ -12,8 +12,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <numeric>
 #include <map>
+#include <set>
 
 #include "Semantic.h"
 
@@ -69,7 +71,11 @@ vector<Rule> merge_rules(const vector<Rule> & rules, bool horizontal)
             iv.emplace_back(rs[k].lo(), rs[k].hi());
         std::sort(iv.begin(), iv.end());
         double lo = iv[0].first, hi = iv[0].second;
-        int kind = rs[i].kind;
+        // the style of the merged rule: the one covering most of its length
+        double len_kind[2] = {0, 0};
+        for (size_t k = i; k < j; ++k)
+            len_kind[rs[k].kind ? 1 : 0] += rs[k].hi() - rs[k].lo();
+        int kind = len_kind[1] > len_kind[0] ? 1 : 0;
         auto flush = [&]() {
             Rule r;
             r.horizontal = horizontal;
@@ -157,8 +163,47 @@ struct LSeg
     int col = 0;
     int colspan = 1;
     double em = 10;
+    int lead = 0; // first letter: +1 upper case, -1 lower case, 0 no letter
     int row = 0; // output
 };
+
+// letter case of a code point: +1 upper, -1 lower, 0 not a (cased) letter
+int letter_case(unsigned u)
+{
+    if (u >= 'A' && u <= 'Z') return 1;
+    if (u >= 'a' && u <= 'z') return -1;
+    if (u >= 0xC0 && u <= 0xDE && u != 0xD7) return 1;
+    if (u >= 0xDF && u <= 0xFF && u != 0xF7) return -1;
+    if ((u >= 0x100 && u <= 0x137) || (u >= 0x14A && u <= 0x177)) return (u % 2 == 0) ? 1 : -1;
+    if ((u >= 0x139 && u <= 0x148) || (u >= 0x179 && u <= 0x17E)) return (u % 2 == 1) ? 1 : -1;
+    if (u >= 0x391 && u <= 0x3A9) return 1;
+    if (u >= 0x3B1 && u <= 0x3C9) return -1;
+    if (u >= 0x400 && u <= 0x42F) return 1;
+    if (u >= 0x430 && u <= 0x45F) return -1;
+    return 0;
+}
+
+// letter case of the first non blank char of a sequence
+int lead_case(const PageInput & in, const vector<int> & chars)
+{
+    for (int i : chars)
+    {
+        const string & t = in.chars[i].text;
+        if (t.empty() || in.chars[i].is_space())
+            continue;
+        unsigned char c0 = t[0];
+        unsigned u = c0;
+        if (c0 >= 0xC0 && t.size() >= 2)
+        {
+            if (c0 < 0xE0)
+                u = ((c0 & 0x1F) << 6) | (t[1] & 0x3F);
+            else if (t.size() >= 3)
+                u = ((c0 & 0x0F) << 12) | ((t[1] & 0x3F) << 6) | (t[2] & 0x3F);
+        }
+        return letter_case(u);
+    }
+    return 0;
+}
 
 /*
  * Split a band (a group of segments that belong to one ruled row, or to the
@@ -166,7 +211,11 @@ struct LSeg
  *
  * Row starts are the text lines of the anchor column (the leftmost column
  * with text). A line of the anchor column that is not accompanied by text in
- * any other column is a wrapped continuation, not a new row.
+ * any other column is a wrapped continuation, not a new row - unless it starts
+ * with an upper case letter: then it is a row of its own (a section heading
+ * like "Current assets") or the first line of a label whose values are on its
+ * last line; a following accompanied line that starts in lower case completes
+ * it.
  *
  * Returns the number of rows; sets LSeg::row.
  */
@@ -187,28 +236,52 @@ int split_band_rows(vector<LSeg> & segs)
     });
 
     vector<double> starts;
+    bool open_label = false; // the last row so far has a label only
     for (size_t k = 0; k < anchor_segs.size(); ++k)
     {
         const LSeg * a = anchor_segs[k];
         if (!starts.empty() && a->box.y0 - starts.back() < 0.3 * a->em)
             continue; // same line
+        bool accompanied = false;
+        for (const auto & s : segs)
+        {
+            if (s.col == anchor)
+                continue;
+            if (abs(s.box.y0 - a->box.y0) <= 0.5 * a->em || abs(s.box.y1 - a->box.y1) <= 0.5 * a->em)
+            {
+                accompanied = true;
+                break;
+            }
+        }
         if (k > 0)
         {
-            bool accompanied = false;
-            for (const auto & s : segs)
+            if (accompanied)
             {
-                if (s.col == anchor)
-                    continue;
-                if (abs(s.box.y0 - a->box.y0) <= 0.5 * a->em || abs(s.box.y1 - a->box.y1) <= 0.5 * a->em)
+                if (open_label && a->lead < 0)
                 {
-                    accompanied = true;
-                    break;
+                    open_label = false; // completes the label above
+                    continue;
                 }
             }
-            if (!accompanied)
-                continue;
+            else if (a->lead <= 0)
+                continue; // wrapped continuation
         }
+        open_label = !accompanied;
         starts.push_back(a->box.y0);
+    }
+
+    /*
+     * Text above the first row of a band with several rows (e.g. a unit line
+     * "(in thousands)" under the column headings) is a row of its own.
+     */
+    if (starts.size() >= 2)
+    {
+        double above = 1e30;
+        for (const auto & s : segs)
+            if (s.box.y1 <= starts[0] - 0.2 * s.em)
+                above = min(above, s.box.y0);
+        if (above < starts[0])
+            starts.insert(starts.begin(), above);
     }
 
     if (starts.size() <= 1)
@@ -426,6 +499,7 @@ vector<LSeg> make_lsegs(const PageInput & in, const vector<vector<Segment>> & li
             for (int i : s.chars)
                 em_sum += in.chars[i].em;
             ls.em = max(em_sum / s.chars.size(), 1.0);
+            ls.lead = lead_case(in, s.chars);
             int c0 = -1, c1 = -1;
             for (int c = 0; c < ncols; ++c)
             {
@@ -482,31 +556,57 @@ vector<Table> detect_ruled_tables(const PageInput & in, vector<bool> & taken, ve
 
     for (auto & kv : comps)
     {
-        const auto & hs = kv.second.first;
-        const auto & vs = kv.second.second;
+        vector<int> hs = kv.second.first;
+        vector<int> vs = kv.second.second;
         if (hs.size() < 2 || vs.size() < 2)
             continue;
 
-        vector<double> xr, yr;
-        double minx = 1e30, maxx = -1e30, miny = 1e30, maxy = -1e30;
-        for (int i : hs)
+        /*
+         * A cell boundary runs from one grid line to another. Rules whose ends
+         * are not on a crossing grid line (underlines, short marks inside a
+         * cell) are not boundaries: drop them. The grid positions across are
+         * taken from the crossing rules and the extent of the parallel ones.
+         */
+        auto grid_positions = [&](const vector<int> & across, const vector<Rule> & A, bool a_horizontal,
+                                  const vector<int> & along, const vector<Rule> & B) {
+            vector<double> pos;
+            double lo = 1e30, hi = -1e30;
+            for (int k : across)
+                pos.push_back(a_horizontal ? A[k].y0 : A[k].x0);
+            for (int k : along)
+            {
+                lo = min(lo, a_horizontal ? B[k].y0 : B[k].x0);
+                hi = max(hi, a_horizontal ? B[k].y1 : B[k].x1);
+            }
+            pos.push_back(lo);
+            pos.push_back(hi);
+            return cluster_positions(pos, MIN_CELL);
+        };
+        auto on_grid = [&](double v, const vector<double> & grid) {
+            for (double g : grid)
+                if (abs(v - g) <= MIN_CELL)
+                    return true;
+            return false;
+        };
         {
-            yr.push_back(H[i].y0);
-            minx = min(minx, H[i].x0);
-            maxx = max(maxx, H[i].x1);
+            vector<double> gx = grid_positions(vs, V, false, hs, H);
+            vector<int> hs2;
+            for (int i : hs)
+                if (on_grid(H[i].x0, gx) && on_grid(H[i].x1, gx))
+                    hs2.push_back(i);
+            if (hs2.size() >= 2)
+                hs = hs2;
+            vector<double> gy = grid_positions(hs, H, true, vs, V);
+            vector<int> vs2;
+            for (int j : vs)
+                if (on_grid(V[j].y0, gy) && on_grid(V[j].y1, gy))
+                    vs2.push_back(j);
+            if (vs2.size() >= 2)
+                vs = vs2;
         }
-        for (int j : vs)
-        {
-            xr.push_back(V[j].x0);
-            miny = min(miny, V[j].y0);
-            maxy = max(maxy, V[j].y1);
-        }
-        xr.push_back(minx);
-        xr.push_back(maxx);
-        yr.push_back(miny);
-        yr.push_back(maxy);
-        vector<double> xs = cluster_positions(xr, MIN_CELL);
-        vector<double> ys = cluster_positions(yr, MIN_CELL);
+
+        vector<double> xs = grid_positions(vs, V, false, hs, H);
+        vector<double> ys = grid_positions(hs, H, true, vs, V);
         int nc = (int)xs.size() - 1, nr = (int)ys.size() - 1;
         if (nc < 2 || nr < 1)
             continue;
@@ -641,6 +741,7 @@ vector<Table> detect_ruled_tables(const PageInput & in, vector<bool> & taken, ve
                         s.col = c->col;
                         s.colspan = c->colspan;
                         s.em = max(vl.em, 1.0);
+                        s.lead = lead_case(in, vl.chars);
                         segs.push_back(s);
                     }
                 }
@@ -677,6 +778,39 @@ vector<Table> detect_ruled_tables(const PageInput & in, vector<bool> & taken, ve
             final_cells = cells;
         }
 
+        /*
+         * Charts: the bars (filled boxes) of a bar chart form a lattice too.
+         * Their grid is mostly empty, with whole columns or rows without
+         * text (the gaps between the bars).
+         */
+        {
+            int nrows = row_map[nr];
+            vector<bool> col_used(nc, false), row_used(nrows, false);
+            int filled = 0;
+            for (const auto & c : final_cells)
+            {
+                bool has_text = false;
+                for (int ci : c.chars)
+                    if (!in.chars[ci].is_space())
+                    {
+                        has_text = true;
+                        break;
+                    }
+                if (!has_text)
+                    continue;
+                ++filled;
+                for (int k = c.col; k < c.col + c.colspan && k < nc; ++k)
+                    col_used[k] = true;
+                for (int k = c.row; k < c.row + c.rowspan && k < nrows; ++k)
+                    row_used[k] = true;
+            }
+            int empty_cols = (int)std::count(col_used.begin(), col_used.end(), false);
+            int empty_rows = (int)std::count(row_used.begin(), row_used.end(), false);
+            bool sparse = filled < 0.5 * final_cells.size();
+            if (sparse && (empty_cols > 0 || empty_rows > 0.25 * nrows))
+                continue;
+        }
+
         Table t;
         t.source = "ruled";
         t.rows = row_map[nr];
@@ -709,6 +843,9 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
     if (H.size() < 2)
         return tables;
 
+    // same extent: within 4pt or 5% of the width
+    auto ext_tol = [](const Rule & r) { return max(4.0, 0.05 * (r.x1 - r.x0)); };
+
     // group rules with the same horizontal extent and the same style (stroked
     // lines vs. edges of filled boxes): two tables of the same width drawn in
     // different styles must not be merged
@@ -721,7 +858,7 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
         vector<int> g{(int)i};
         grouped[i] = true;
         for (size_t j = i + 1; j < H.size(); ++j)
-            if (!grouped[j] && H[j].kind == H[i].kind && abs(H[j].x0 - H[i].x0) <= 4 && abs(H[j].x1 - H[i].x1) <= 4)
+            if (!grouped[j] && H[j].kind == H[i].kind && abs(H[j].x0 - H[i].x0) <= ext_tol(H[i]) && abs(H[j].x1 - H[i].x1) <= ext_tol(H[i]))
             {
                 g.push_back(j);
                 grouped[j] = true;
@@ -740,7 +877,7 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                     continue;
                 const Rule & last = H[groups[a].back()];
                 const Rule & first = H[groups[b].front()];
-                if (abs(last.y0 - first.y0) <= 2 && abs(last.x0 - first.x0) <= 4 && abs(last.x1 - first.x1) <= 4)
+                if (abs(last.y0 - first.y0) <= 2 && abs(last.x0 - first.x0) <= ext_tol(last) && abs(last.x1 - first.x1) <= ext_tol(last))
                 {
                     groups[a].insert(groups[a].end(), groups[b].begin() + 1, groups[b].end());
                     groups.erase(groups.begin() + b);
@@ -750,12 +887,82 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
     }
     groups.erase(std::remove_if(groups.begin(), groups.end(), [](const vector<int> & g) { return g.size() < 2; }), groups.end());
 
+    /*
+     * Chart grid lines: most rules have a tick label (a short text) on their
+     * own height just before or after them ("400", "300", ...). The text of a
+     * table is between its rules, not on them.
+     */
+    {
+        vector<int> all;
+        for (const auto & ch : in.chars)
+            if (usable_char(ch) && !taken[ch.index])
+                all.push_back(ch.index);
+        auto lines = build_visual_lines(in.chars, all);
+        vector<Segment> segs;
+        for (const auto & l : lines)
+            for (auto & sg : split_segments(in.chars, l, SEG_GAP_EM))
+                segs.push_back(std::move(sg));
+        auto has_tick = [&](const Rule & r) {
+            for (const auto & sg : segs)
+            {
+                // a short number whose box touches the rule's height (tick labels sit on
+                // the grid line or are centered on it)
+                double em = max(sg.box.h(), 4.0);
+                if (r.y0 < sg.box.y0 - 0.15 * em || r.y0 > sg.box.y1 + 0.3 * em || sg.box.w() > 6 * em)
+                    continue;
+                string t = chars_text(in.chars, sg.chars);
+                if (t.size() > 10 || std::none_of(t.begin(), t.end(), [](char c) { return c >= '0' && c <= '9'; }))
+                    continue;
+                if ((sg.box.x1 <= r.x0 + 1 && sg.box.x1 >= r.x0 - 3 * em)
+                        || (sg.box.x0 >= r.x1 - 1 && sg.box.x0 <= r.x1 + 3 * em))
+                    return true;
+            }
+            return false;
+        };
+        groups.erase(std::remove_if(groups.begin(), groups.end(), [&](const vector<int> & g) {
+            int ticks = 0;
+            for (int k : g)
+                if (has_tick(H[k]))
+                    ++ticks;
+            return ticks >= 3 && ticks >= 0.5 * g.size();
+        }), groups.end());
+    }
+
     auto chars_in = [&](const Box & b) {
         vector<int> v;
         for (const auto & ch : in.chars)
             if (usable_char(ch) && !taken[ch.index] && b.contains(ch.box.cx(), ch.box.cy()))
                 v.push_back(ch.index);
         return v;
+    };
+
+    auto body_em = [](const vector<VLine> & lines) {
+        vector<double> v;
+        for (const auto & l : lines)
+            v.push_back(l.em);
+        return max(median(v), 4.0);
+    };
+
+    /*
+     * A band (between two rules) that starts with a lot of empty space is not
+     * part of the table above it: e.g. two tables of the same width, one
+     * below the other, with a caption in between. Text left of the rules
+     * (row labels, captions) counts too.
+     */
+    auto band_has_gap = [&](double y0, double y1, double x1, const vector<VLine> & table_lines) {
+        vector<int> ids;
+        for (const auto & ch : in.chars)
+            if (usable_char(ch) && !taken[ch.index] && ch.box.cx() <= x1 && ch.box.cy() > y0 && ch.box.cy() < y1)
+                ids.push_back(ch.index);
+        double limit = 2.5 * body_em(table_lines);
+        double prev = y0;
+        for (const auto & l : build_visual_lines(in.chars, ids))
+        {
+            if (l.box.y0 - prev > limit)
+                return true;
+            prev = max(prev, l.box.y1);
+        }
+        return false;
     };
 
     for (const auto & g : groups)
@@ -772,6 +979,8 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
             while (j < g.size())
             {
                 Box region(H[g[i]].x0 - 2, H[g[i]].y0, H[g[i]].x1 + 2, H[g[j]].y0);
+                if (best_j != 0 && band_has_gap(H[g[j - 1]].y0, H[g[j]].y0, region.x1, best_lines))
+                    break; // a different table further down
                 auto ids = chars_in(region);
                 if (ids.empty())
                 {
@@ -812,39 +1021,263 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
             for (size_t k = i; k <= best_j; ++k)
                 rule_ys.push_back(H[g[k]].y0);
 
-            // a header row right above the first rule (tables with rules below each row only)
+            bool label_extended = false;
+            /*
+             * Row labels left of the rules: in financial statements the rules
+             * often run under the number columns only. Text left of the table
+             * whose lines are aligned with the table's lines becomes the first
+             * column. Lines above the first or below the last aligned label
+             * (captions, paragraphs) are not included.
+             */
             {
-                double top = rule_ys.front();
-                double em = 0;
-                for (const auto & l : best_lines)
-                    em = max(em, l.em);
-                em = max(em, 6.0);
-                Box above(H[g[i]].x0 - 2, top - 1.8 * em, H[g[i]].x1 + 2, top);
-                auto ids = chars_in(above);
-                bool header_ok = false;
-                if (!ids.empty())
+                double x_left = H[g[i]].x0 - 2;
+                double top = rule_ys.front(), bottom = rule_ys.back();
+                vector<int> ids;
+                for (const auto & ch : in.chars)
+                    if (usable_char(ch) && !taken[ch.index] && ch.box.x1 <= x_left + 1
+                            && ch.box.cy() > top && ch.box.cy() < bottom)
+                        ids.push_back(ch.index);
+                auto llines = build_visual_lines(in.chars, ids);
+                vector<Box> tseg_boxes;
+                for (const auto & ls : best_segs)
+                    for (const auto & sg : ls)
+                        tseg_boxes.push_back(sg.box);
+                vector<int> aligned_idx;
+                for (size_t k = 0; k < llines.size(); ++k)
                 {
-                    auto hl = build_visual_lines(in.chars, ids);
-                    if (hl.size() == 1 && hl[0].box.y0 >= above.y0)
+                    const auto & l = llines[k];
+                    for (const auto & b : tseg_boxes)
+                        if (abs(b.cy() - l.box.cy()) <= 0.35 * max(l.em, 1.0))
+                        {
+                            aligned_idx.push_back((int)k);
+                            break;
+                        }
+                }
+                int table_lines = 0;
+                for (const auto & ls : best_segs)
+                    if (!ls.empty())
+                        ++table_lines;
+                if (aligned_idx.size() >= 2 && aligned_idx.size() >= 0.4 * table_lines)
+                {
+                    double em = body_em(llines);
+                    int first = aligned_idx.front(), last = aligned_idx.back();
+                    // wrapped continuation lines of the last label
+                    while (last + 1 < (int)llines.size() && llines[last + 1].box.y0 - llines[last].box.y1 < 0.6 * em)
+                        ++last;
+                    double lx0 = 1e30;
+                    for (int k = first; k <= last; ++k)
                     {
-                        auto segs = split_segments(in.chars, hl[0], SEG_GAP_EM);
-                        // every segment must lie within one column
-                        header_ok = segs.size() >= 2;
-                        for (const auto & sg : segs)
-                        {
-                            int c0 = locate(best_bounds, sg.box.x0 + 0.1), c1 = locate(best_bounds, sg.box.x1 - 0.1);
-                            if (c0 < 0 || c0 != c1)
-                                header_ok = false;
-                        }
-                        if (header_ok)
-                        {
-                            best_segs.insert(best_segs.begin(), segs);
-                            rule_ys.insert(rule_ys.begin(), hl[0].box.y0 - 1);
-                        }
+                        Segment sg;
+                        sg.box = llines[k].box;
+                        sg.chars = llines[k].chars;
+                        best_segs.push_back({sg});
+                        lx0 = min(lx0, llines[k].box.x0);
                     }
+                    best_bounds.insert(best_bounds.begin(), lx0 - 1);
+                    label_extended = true;
                 }
             }
+
+            /*
+             * Rows above the first rule: the column headings, and - when the
+             * rules only separate the totals - the first rows of the table.
+             * Lines are taken going up while they fit the columns, without a
+             * big gap, a line across the columns or a bigger font (caption).
+             * The leading lines that are not data rows (a label with numbers)
+             * form one header row.
+             */
+            int header_band = -1; // index of the band holding the header row
+            std::set<int> heading_chars; // first chars of the header segments
+            {
+                double top = rule_ys.front();
+                double tl = best_bounds.front(), tr = best_bounds.back();
+                double em = body_em(best_lines);
+                vector<int> ids;
+                for (const auto & ch : in.chars)
+                    if (usable_char(ch) && !taken[ch.index] && ch.box.cy() < top && ch.box.cy() > top - 40 * em
+                            && ch.box.cx() > tl - 3 * em && ch.box.cx() < tr + 3 * em)
+                        ids.push_back(ch.index);
+                // data row: text in the first column and a number in another one
+                bool label_col = best_bounds.size() >= 3;
+                auto is_number = [&](const Segment & sg) {
+                    string t = chars_text(in.chars, sg.chars);
+                    bool digit = false;
+                    for (char c : t)
+                    {
+                        if (c >= '0' && c <= '9')
+                            digit = true;
+                        else if (!strchr(".,()%-+/ ", c) && (unsigned char)c < 0x80)
+                            return false;
+                    }
+                    return digit || t == "-" || t == "\xe2\x80\x93"; // dash: nothing
+                };
+                auto is_data_line = [&](const vector<Segment> & segs) {
+                    if (!label_col)
+                        return false;
+                    bool label = false, number = false;
+                    for (const auto & sg : segs)
+                    {
+                        if (sg.box.cx() < best_bounds[1])
+                            label = true;
+                        else if (is_number(sg))
+                            number = true;
+                    }
+                    return label && number;
+                };
+                auto up = build_visual_lines(in.chars, ids);
+                vector<std::pair<VLine, vector<Segment>>> accepted; // bottom to top
+                double cur = top;
+                for (int k = (int)up.size() - 1; k >= 0; --k)
+                {
+                    const VLine & l = up[k];
+                    if (getenv("P2H_SEM_DEBUG"))
+                        fprintf(stderr, "up: line %.1f-%.1f x %.1f-%.1f em %.2f (table em %.2f, tl %.1f tr %.1f cur %.1f) '%s'\n", l.box.y0, l.box.y1, l.box.x0, l.box.x1, l.em, em, tl, tr, cur, chars_text(in.chars, l.chars).c_str());
+                    if (cur - l.box.y1 > 2.0 * em || l.em > 1.08 * em)
+                        break;
+                    if (l.box.x0 < tl - 0.25 * em || l.box.x1 > tr + 0.5 * em)
+                        break;
+                    auto segs = split_segments(in.chars, l, SEG_GAP_EM);
+                    // headings may be wider than their numbers: only text running across
+                    // the table (a caption, a paragraph) does not fit
+                    bool fits = !segs.empty();
+                    for (const auto & sg : segs)
+                        if (sg.box.w() > 0.6 * (tr - tl) && segs.size() == 1)
+                        {
+                            if (getenv("P2H_SEM_DEBUG"))
+                                fprintf(stderr, "  seg %.1f-%.1f does not fit '%s'\n", sg.box.x0, sg.box.x1, chars_text(in.chars, sg.chars).c_str());
+                            fits = false;
+                        }
+                    if (fits && segs.size() == 1 && !is_data_line(segs))
+                    {
+                        // a lone text above the table: part of a multi-line heading only if
+                        // close to the line below, never a caption ending with ':'
+                        string t = chars_text(in.chars, segs[0].chars);
+                        if ((!t.empty() && t.back() == ':') || cur - l.box.y1 > 0.8 * em)
+                            fits = false;
+                    }
+                    if (!fits)
+                        break;
+                    accepted.emplace_back(l, std::move(segs));
+                    cur = l.box.y0;
+                }
+                std::reverse(accepted.begin(), accepted.end());
+
+                size_t nh = 0;
+                while (nh < accepted.size() && !is_data_line(accepted[nh].second))
+                    ++nh;
+                // a single header line needs at least two headings (old behaviour)
+                if (nh == 1 && accepted.size() == 1 && accepted[0].second.size() < 2)
+                    accepted.clear(), nh = 0;
+                if (!accepted.empty())
+                {
+                    vector<double> new_ys;
+                    if (nh > 0)
+                        new_ys.push_back(accepted[0].first.box.y0 - 1);
+                    if (nh < accepted.size())
+                        new_ys.push_back(nh > 0 ? (accepted[nh - 1].first.box.y1 + accepted[nh].first.box.y0) / 2
+                                                : accepted[0].first.box.y0 - 1);
+                    if (nh > 0)
+                        header_band = 0;
+                    for (size_t k = 0; k < accepted.size(); ++k)
+                    {
+                        if (k < nh)
+                            for (const auto & sg : accepted[k].second)
+                                if (!sg.chars.empty())
+                                    heading_chars.insert(sg.chars.front());
+                        best_segs.push_back(accepted[k].second);
+                    }
+                    rule_ys.insert(rule_ys.begin(), new_ys.begin(), new_ys.end());
+                }
+            }
+
             auto lsegs = make_lsegs(in, best_segs, best_bounds);
+
+            /*
+             * A heading belongs to the column whose values it is aligned with
+             * (left, centered or right), even when it is wider than them.
+             */
+            if (!heading_chars.empty())
+            {
+                int ncols = (int)best_bounds.size() - 1;
+                vector<double> cl(ncols, 1e30), cr(ncols, -1e30);
+                for (const auto & ls : lsegs)
+                    if (ls.colspan == 1 && !ls.chars.empty() && !heading_chars.count(ls.chars.front()))
+                    {
+                        cl[ls.col] = min(cl[ls.col], ls.box.x0);
+                        cr[ls.col] = max(cr[ls.col], ls.box.x1);
+                    }
+                // per heading line: an order preserving assignment of its segments to
+                // the value columns, minimizing the alignment distance
+                auto dist = [&](const LSeg & ls, int c) {
+                    if (cl[c] > cr[c])
+                        return 1e6 + abs(ls.box.cx() - (best_bounds[c] + best_bounds[c + 1]) / 2);
+                    return min(min(abs(ls.box.x0 - cl[c]), abs(ls.box.x1 - cr[c])),
+                               abs(ls.box.cx() - (cl[c] + cr[c]) / 2));
+                };
+                vector<LSeg *> heads;
+                for (auto & ls : lsegs)
+                    if (!ls.chars.empty() && heading_chars.count(ls.chars.front()))
+                        heads.push_back(&ls);
+                std::sort(heads.begin(), heads.end(), [](const LSeg * a, const LSeg * b) {
+                    return a->box.cy() < b->box.cy() || (a->box.cy() == b->box.cy() && a->box.x0 < b->box.x0);
+                });
+                int first_value_col = (best_bounds.size() >= 3 && label_extended) ? 1 : 0;
+                for (size_t a0 = 0; a0 < heads.size(); )
+                {
+                    size_t a1 = a0;
+                    while (a1 < heads.size() && abs(heads[a1]->box.cy() - heads[a0]->box.cy()) < 0.3 * heads[a0]->em)
+                        ++a1;
+                    vector<LSeg *> line(heads.begin() + a0, heads.begin() + a1);
+                    std::sort(line.begin(), line.end(), [](const LSeg * a, const LSeg * b) { return a->box.x0 < b->box.x0; });
+                    // the label column keeps its text
+                    vector<LSeg *> vals;
+                    for (LSeg * ls : line)
+                    {
+                        if (first_value_col == 1 && ls->box.cx() < best_bounds[1])
+                        {
+                            ls->col = 0;
+                            ls->colspan = 1;
+                        }
+                        else
+                            vals.push_back(ls);
+                    }
+                    int m = ncols - first_value_col, k = (int)vals.size();
+                    if (k > 0 && k <= m)
+                    {
+                        const double INF = 1e30;
+                        vector<vector<double>> f(k, vector<double>(m, INF));
+                        vector<vector<int>> from(k, vector<int>(m, -1));
+                        for (int j = 0; j < m; ++j)
+                            f[0][j] = dist(*vals[0], first_value_col + j);
+                        for (int i = 1; i < k; ++i)
+                        {
+                            double best_prev = INF;
+                            int best_j = -1;
+                            for (int j = i; j < m; ++j)
+                            {
+                                if (f[i - 1][j - 1] < best_prev)
+                                {
+                                    best_prev = f[i - 1][j - 1];
+                                    best_j = j - 1;
+                                }
+                                if (best_prev < INF)
+                                {
+                                    f[i][j] = best_prev + dist(*vals[i], first_value_col + j);
+                                    from[i][j] = best_j;
+                                }
+                            }
+                        }
+                        int j = (int)(std::min_element(f[k - 1].begin(), f[k - 1].end()) - f[k - 1].begin());
+                        for (int i = k - 1; i >= 0 && j >= 0; --i)
+                        {
+                            vals[i]->col = first_value_col + j;
+                            vals[i]->colspan = 1;
+                            j = from[i][j];
+                        }
+                    }
+                    a0 = a1;
+                }
+            }
 
             Table t;
             t.source = "hrules";
@@ -860,10 +1293,19 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                         band.push_back(s);
                 if (band.empty())
                     continue;
-                int n = split_band_rows(band);
+                int n;
+                if ((int)b == header_band)
+                {
+                    // the column headings: one row of (multi-line) cells
+                    for (auto & sg : band)
+                        sg.row = 0;
+                    n = 1;
+                }
+                else
+                    n = split_band_rows(band);
                 size_t first = t.cells.size();
                 band_to_cells(band, row, best_bounds, rule_ys[b], rule_ys[b + 1], n, t.cells);
-                if (b == 0 && rule_ys.size() > 2 && n == 1)
+                if ((int)b == header_band || (b == 0 && header_band < 0 && rule_ys.size() > 2 && n == 1))
                     for (size_t k = first; k < t.cells.size(); ++k)
                         t.cells[k].header = true;
                 row += n;

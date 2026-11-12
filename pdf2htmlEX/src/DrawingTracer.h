@@ -47,7 +47,11 @@ public:
      * Used to detect table rulings.
      */
     enum { RULE_STROKE = 0, RULE_FILL = 1 };
-    std::function<void(double x0, double y0, double x1, double y1, double width, int kind)> on_rule_drawn;
+
+    // baseline direction of the last char passed to draw_char (tracer space)
+    double last_char_dir[2] = {1, 0};
+    // white: drawn in (near) white, i.e. invisible on a white page
+    std::function<void(double x0, double y0, double x1, double y1, double width, int kind, bool white)> on_rule_drawn;
 
     DrawingTracer(const Param & param);
     virtual ~DrawingTracer();
@@ -76,7 +80,7 @@ public:
 
 private:
     void finish();
-    void emit_fill_rects(const GfxPath * path);
+    void emit_fill_rects(const GfxPath * path, bool white);
     // Following methods operate in user space (just before CTM is applied)
     void do_path(GfxState * state, const GfxPath * path);
     void draw_non_char_bbox(GfxState * state, double * bbox, int what);

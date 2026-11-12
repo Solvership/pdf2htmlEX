@@ -49,6 +49,8 @@ void ffw_reencode_raw2(const char ** mapping, int mapping_len, int force);
 void ffw_cidflatten(void);
 // add a new empty char into the font
 void ffw_add_empty_char(int32_t unicode, int width);
+// 1 if the glyph in encoding slot `enc` draws nothing (e.g. a space), -1 if there is no such slot
+int ffw_is_blank_glyph(int enc);
 
 ////////////////////////
 // metrics

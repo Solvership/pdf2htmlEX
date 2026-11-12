@@ -94,8 +94,8 @@ HTMLRenderer::HTMLRenderer(const char* progPath, Param & param)
     if (param.semantic_tables)
     {
         tracer.on_rule_drawn =
-            [this](double x0, double y0, double x1, double y1, double width, int kind) {
-                page_rules.push_back(semantic::RawRule{x0, y0, x1, y1, width, kind});
+            [this](double x0, double y0, double x1, double y1, double width, int kind, bool white) {
+                page_rules.push_back(semantic::RawRule{x0, y0, x1, y1, width, kind, white});
             };
     }
 }
@@ -225,6 +225,7 @@ void HTMLRenderer::startPage(int pageNum, GfxState *state, XRef * xref)
     tracer.reset(state);
 
     char_mcids.clear();
+    char_dirs.clear();
     char_ems.clear();
     char_unicode.clear();
     mcid_stack.clear();

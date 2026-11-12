@@ -123,12 +123,21 @@ void HTMLRenderer::drawString(GfxState * state, DrawStringArg s)
             for (auto it = mcid_stack.rbegin(); it != mcid_stack.rend(); ++it)
                 if (*it >= 0) { mcid = *it; break; }
             char_mcids.push_back(mcid);
+            char_dirs.push_back((float)tracer.last_char_dir[0]);
+            char_dirs.push_back((float)tracer.last_char_dir[1]);
             // visual font size in pt
             char_ems.push_back((float)(cur_text_state.font_size * cur_text_state.font_info->font_size_scale / text_scale_factor1));
             std::string utext;
             if (u && uLen > 0 && none_of(u, u + uLen, is_illegal_unicode))
                 for (int k = 0; k < uLen; ++k)
                     append_utf8(utext, u[k]);
+            else
+            {
+                // no unicode in the PDF: a glyph that draws nothing is a space
+                const auto & blank = cur_text_state.font_info->blank_codes;
+                if (code < blank.size() && blank[code])
+                    utext = " ";
+            }
             char_unicode.push_back(std::move(utext));
         }
 

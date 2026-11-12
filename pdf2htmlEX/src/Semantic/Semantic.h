@@ -63,6 +63,7 @@ struct Char
     std::string text;          // UTF-8, empty for padding glyphs
     bool space_before = false; // a word gap precedes the glyph in its HTML line
     int mcid = -1;             // marked content id (tagged PDF)
+    int dir = 0;               // writing direction: 0 left to right, 1 bottom to top, 2 right to left (upside down), 3 top to bottom
     bool is_space() const { return text == " " || text == "\xc2\xa0"; }
 };
 
@@ -82,6 +83,7 @@ struct RawRule
 {
     double x0, y0, x1, y1, width;
     int kind;
+    bool white = false; // invisible on a white page
 };
 
 struct Cell
@@ -172,7 +174,11 @@ struct VLine
     Box box;
     std::vector<int> chars; // in reading order
     double em = 0;
+    int dir = 0;            // writing direction of the chars (see Char::dir)
 };
+
+// box of a char in its reading frame: x along the baseline, y across (next line)
+Box reading_box(const Char & c);
 
 struct Segment
 {
