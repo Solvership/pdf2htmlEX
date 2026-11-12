@@ -179,3 +179,18 @@ Treća runda:
   unutar vrijednosnih stupaca (zbroj pod zadnja dva stupca) ne prekida. Str. 102 (20 → 29 redova)
   i 129 (10 → 14 redova); ostalo nepromijenjeno. Test `statement`.
 * prikaz tablica: prelaskom miša oznaka s tablicom, redom, stupcem i tekstom ćelije.
+
+Četvrta runda (str. 108, 143, 146):
+
+* hrules „fallback” kad pojasevi između linija nemaju ≥ 2 retka za `find_columns`: stupci iz
+  redova s brojevima između linija i neposredno ispod (bez razmaka > 2,5 em, većeg fonta,
+  proze, tuđe linije); zatim uobičajeni koraci (nazivi lijevo, zaglavlje gore, redovi dolje).
+  Dopuštene i grupe s jednom linijom (obrađuju se nakon svih ostalih grupa, da linija zbroja
+  unutar izvještaja ne preuzme njegove redove) i tablica od zadnje linije grupe. Ispravljena
+  greška: `best_j == 0` kao oznaka „nije nađeno” za tablicu od linije s indeksom 0.
+* zaglavlje: druga runda za retke godina (ili naslove iznad retka godina) s manje naslova od
+  retka ispod — skupina se traži i kad je godina iznad brojeva jednog stupca; skupine ne smiju
+  presijecati skupine iznad (jedinica ispod „2025. | 2024.” → sva 4 stupca).
+* Rezultat 96 tablica; promijenjene samo str. 108 (nova, 41×7), 143 (+1), 146 (+2), 153 (+1),
+  154 (+1). Test `fewrules`.
+

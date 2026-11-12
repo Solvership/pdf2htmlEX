@@ -79,6 +79,14 @@ mjerenjem (`scripts/fidelity_metric.py`, raster PDF-a naspram rendera HTML-a):
      tekstove ili godine) započinje novu tablicu;
    * naslov centriran iznad skupine stupaca, između njihovih vrijednosti (npr. „2025.” iznad
      „Brend | Goodwill”, ili „(u tisućama eura)”), proteže se preko cijele skupine (colspan).
+   * tablice s **premalo redova između linija** da bi se iz njih odredili stupci: jedna linija
+     ispod zaglavlja i svi redovi ispod nje (popis društava), par linija oko samog zbroja (redovi
+     i zaglavlje su iznad), par linija oko jednog retka („Krediti i zajmovi”) ili oko retka bez
+     brojeva („EUR | EUR”) s retkom ispod. Stupci se tada određuju iz redova s brojevima
+     neposredno uz linije;
+   * godine i naslovi skupina („Obveze | Imovina”) iznad parova stupaca protežu se preko para i
+     kad su poravnati s brojevima jednog stupca; jedinica ispod dviju godina proteže se preko
+     obje skupine.
 4. **stream** (samo uz `all`): tablice bez ikakvih linija, iz poravnanja teksta. Ovo je
    heuristika, pa je isključena dok je ne zatražite.
 

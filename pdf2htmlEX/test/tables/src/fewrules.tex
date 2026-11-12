@@ -1,0 +1,83 @@
+% Tables with too few rows between their rules to find the columns there:
+%  - a single rule under the column headings, all rows below it (labels
+%    inside the rule's extent, a text column, a footnote mark column),
+%  - a rule pair around the total only: the rows and the headings are above,
+%    years centered over "Broj dionica | % vlasništva",
+%  - a rule pair around a single row, its label left of the rules, the unit
+%    centered under the two years (spans all four columns),
+%  - a rule pair around a line without numbers ("EUR | EUR"), the row below,
+%  - a single rule under the years, group headings over them a bit off center.
+\documentclass[a4paper,10pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{array}
+\usepackage[margin=2.5cm]{geometry}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\begin{document}
+Na datume izvještavanja Društvo je imalo sljedeće vlasničke udjele u društvima pod njegovom kontrolom:
+
+\vspace{1em}
+{\small
+\begin{tabular}{@{}p{5cm}p{1cm}crrrr@{}}
+ & & & \multicolumn{2}{c}{2025.} & \multicolumn{2}{c}{2024.} \\
+\textbf{Društvo} & & \textbf{Zemlja} & IVU\% & EVU\% & IVU\% & EVU\% \\ \hline
+\textbf{C.I.A.K. auto d.o.o.} & & HR & 100\% & 100\% & 100\% & 100\% \\
+\quad AD Adria d.o.o. & & HR & & 100\% & & 100\% \\
+\quad Potokar d.o.o. & *** & SLO & & 0\% & & 100\% \\
+\quad Bendj trade d.o.o. & & BiH & & 62\% & & 62\% \\
+\textbf{CIAK Truck d.o.o.} & & HR & 100\% & 100\% & 100\% & 100\% \\
+\end{tabular}}
+
+\vspace{3em}
+Vlasnička struktura na datume izvještavanja bila je sljedeća:
+
+\vspace{1em}
+{\small
+\begin{tabular}{@{}p{4cm}rrrr@{}}
+ & \multicolumn{2}{c}{2025.} & \multicolumn{2}{c}{2024.} \\
+ & Broj & \% & Broj & \% \\
+\textbf{Vlasnička struktura} & dionica & vlasništva & dionica & vlasništva \\
+Ivan Leko & 10.015.327 & 50,73\% & 10.006.913 & 50,71\% \\
+Ljilja Leko & 3.180.140 & 16,11\% & 3.180.140 & 16,12\% \\
+Ostali & 6.547.282 & 33,16\% & 6.546.069 & 33,17\% \\ \cline{2-5}
+\textbf{Ukupno} & \textbf{19.742.749} & \textbf{100,00\%} & \textbf{19.733.122} & \textbf{100,00\%} \\ \cline{2-5}
+\end{tabular}}
+
+\vspace{3em}
+Pregled zaduženja po podjeli na fiksne i varijabilne kamatne stope je kako slijedi:
+
+\vspace{1em}
+{\small
+\begin{tabular}{@{}p{4cm}rrrr@{}}
+ & \multicolumn{2}{c}{2025.} & \multicolumn{2}{c}{2024.} \\
+ & Fiksna & Varijabilna & Fiksna & Varijabilna \\
+ & \multicolumn{4}{c}{(u tisućama eura)} \\ \cline{2-5}
+Krediti i zajmovi & 3.717 & 57.417 & 3.735 & 64.559 \\ \cline{2-5}
+\end{tabular}}
+
+\vspace{3em}
+Prosječni ponderirani trošak duga vezano uz zaduženja Grupe bio je kako slijedi:
+
+\vspace{1em}
+{\small
+\begin{tabular}{@{}p{7cm}rr@{}}
+ & 2025. & 2024. \\ \cline{2-3}
+ & EUR & EUR \\ \cline{2-3}
+Prosječna ponderirana stopa & 3,49\% & 4,51\% \\
+\end{tabular}}
+
+\vspace{3em}
+U idućoj tablici su prikazani iznosi monetarne imovine i obveza Grupe u stranoj valuti:
+
+\vspace{1em}
+{\small
+\begin{tabular}{@{}p{5cm}rrrr@{}}
+ & \multicolumn{2}{c}{\textbf{Obveze}\hspace{0.8cm}} & \multicolumn{2}{c}{\textbf{Imovina}} \\
+ & \textbf{2025.} & \textbf{2024.} & \textbf{2025.} & \textbf{2024.} \\ \hline
+Bosna i Hercegovina (BAM) & 7.556 & 6.114 & 11.116 & 9.100 \\
+Srbija (RSD) & 9.645 & 5.378 & 10.640 & 10.470 \\
+Sjeverna Makedonija (MKD) & 952 & 1.252 & 710 & 666 \\
+\end{tabular}}
+\end{document}

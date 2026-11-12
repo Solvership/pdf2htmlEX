@@ -1,0 +1,237 @@
+{
+ "tables": [
+  {
+   "page": 1,
+   "source": "hrules",
+   "rows": 7,
+   "cols": 7,
+   "cells": [
+    [
+     {
+      "text": "2025.",
+      "rs": 1,
+      "cs": 2
+     },
+     {
+      "text": "2024.",
+      "rs": 1,
+      "cs": 2
+     }
+    ],
+    [
+     "Društvo",
+     "Zemlja",
+     "IVU%",
+     "EVU%",
+     "IVU%",
+     "EVU%"
+    ],
+    [
+     "C.I.A.K. auto d.o.o.",
+     "HR",
+     "100%",
+     "100%",
+     "100%",
+     "100%"
+    ],
+    [
+     "AD Adria d.o.o.",
+     "HR",
+     "100%",
+     "100%"
+    ],
+    [
+     "Potokar d.o.o.",
+     "***",
+     "SLO",
+     "0%",
+     "100%"
+    ],
+    [
+     "Bendj trade d.o.o.",
+     "BiH",
+     "62%",
+     "62%"
+    ],
+    [
+     "CIAK Truck d.o.o.",
+     "HR",
+     "100%",
+     "100%",
+     "100%",
+     "100%"
+    ]
+   ]
+  },
+  {
+   "page": 1,
+   "source": "hrules",
+   "rows": 6,
+   "cols": 5,
+   "cells": [
+    [
+     {
+      "text": "2025.",
+      "rs": 1,
+      "cs": 2
+     },
+     {
+      "text": "2024.",
+      "rs": 1,
+      "cs": 2
+     }
+    ],
+    [
+     "Vlasnička struktura",
+     "Broj dionica",
+     "% vlasništva",
+     "Broj dionica",
+     "% vlasništva"
+    ],
+    [
+     "Ivan Leko",
+     "10.015.327",
+     "50,73%",
+     "10.006.913",
+     "50,71%"
+    ],
+    [
+     "Ljilja Leko",
+     "3.180.140",
+     "16,11%",
+     "3.180.140",
+     "16,12%"
+    ],
+    [
+     "Ostali",
+     "6.547.282",
+     "33,16%",
+     "6.546.069",
+     "33,17%"
+    ],
+    [
+     "Ukupno",
+     "19.742.749",
+     "100,00%",
+     "19.733.122",
+     "100,00%"
+    ]
+   ]
+  },
+  {
+   "page": 1,
+   "source": "hrules",
+   "rows": 4,
+   "cols": 5,
+   "cells": [
+    [
+     {
+      "text": "2025.",
+      "rs": 1,
+      "cs": 2
+     },
+     {
+      "text": "2024.",
+      "rs": 1,
+      "cs": 2
+     }
+    ],
+    [
+     "Fiksna",
+     "Varijabilna",
+     "Fiksna",
+     "Varijabilna"
+    ],
+    [
+     {
+      "text": "(u tisućama eura)",
+      "rs": 1,
+      "cs": 4
+     }
+    ],
+    [
+     "Krediti i zajmovi",
+     "3.717",
+     "57.417",
+     "3.735",
+     "64.559"
+    ]
+   ]
+  },
+  {
+   "page": 1,
+   "source": "hrules",
+   "rows": 3,
+   "cols": 3,
+   "cells": [
+    [
+     "2025.",
+     "2024."
+    ],
+    [
+     "EUR",
+     "EUR"
+    ],
+    [
+     "Prosječna ponderirana stopa",
+     "3,49%",
+     "4,51%"
+    ]
+   ]
+  },
+  {
+   "page": 1,
+   "source": "hrules",
+   "rows": 5,
+   "cols": 5,
+   "cells": [
+    [
+     {
+      "text": "Obveze",
+      "rs": 1,
+      "cs": 2
+     },
+     {
+      "text": "Imovina",
+      "rs": 1,
+      "cs": 2
+     }
+    ],
+    [
+     "2025.",
+     "2024.",
+     "2025.",
+     "2024."
+    ],
+    [
+     "Bosna i Hercegovina (BAM)",
+     "7.556",
+     "6.114",
+     "11.116",
+     "9.100"
+    ],
+    [
+     "Srbija (RSD)",
+     "9.645",
+     "5.378",
+     "10.640",
+     "10.470"
+    ],
+    [
+     "Sjeverna Makedonija (MKD)",
+     "952",
+     "1.252",
+     "710",
+     "666"
+    ]
+   ]
+  }
+ ],
+ "paragraphs": [
+  "Na datume izvještavanja Društvo je imalo sljedeće vlasničke udjele u društvima pod njegovom kontrolom:",
+  "Vlasnička struktura na datume izvještavanja bila je sljedeća:",
+  "Pregled zaduženja po podjeli na ﬁksne i varijabilne kamatne stope je kako slijedi:",
+  "Prosječni ponderirani trošak duga vezano uz zaduženja Grupe bio je kako slijedi:",
+  "U idućoj tablici su prikazani iznosi monetarne imovine i obveza Grupe u stranoj valuti:"
+ ]
+}

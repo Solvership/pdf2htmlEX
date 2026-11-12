@@ -190,6 +190,35 @@ class TableTests(unittest.TestCase):
                                          '(6.211)', '(6.261)'])
         self.assertEqual(t['cells'][6], ['Dobit prije poreza', '13.936', '10.516'])
 
+    def test_single_rule_under_headings(self):
+        # one rule under the column headings, all rows below it
+        t = self.results['fewrules']['tables'][0]
+        self.assertEqual((t['rows'], t['cols']), (7, 7))
+        self.assertEqual(t['cells'][0], [{'text': '2025.', 'rs': 1, 'cs': 2}, {'text': '2024.', 'rs': 1, 'cs': 2}])
+        self.assertEqual(t['cells'][4], ['Potokar d.o.o.', '***', 'SLO', '0%', '100%'])
+
+    def test_rules_around_one_row(self):
+        tables = self.results['fewrules']['tables']
+        self.assertEqual(len(tables), 5)
+        # the rows and headings above a rule pair around the total
+        t = tables[1]
+        self.assertEqual(t['rows'], 6)
+        self.assertEqual(t['cells'][1], ['Vlasnička struktura', 'Broj dionica', '% vlasništva', 'Broj dionica', '% vlasništva'])
+        self.assertEqual(t['cells'][-1], ['Ukupno', '19.742.749', '100,00%', '19.733.122', '100,00%'])
+        # a single row with its label left of the rules; the unit under both years spans all
+        t = tables[2]
+        self.assertEqual(t['cells'][2], [{'text': '(u tisućama eura)', 'rs': 1, 'cs': 4}])
+        self.assertEqual(t['cells'][3], ['Krediti i zajmovi', '3.717', '57.417', '3.735', '64.559'])
+        # the row below a rule pair around a line without numbers
+        self.assertEqual(tables[3]['cells'], [['2025.', '2024.'], ['EUR', 'EUR'], ['Prosječna ponderirana stopa', '3,49%', '4,51%']])
+
+    def test_group_headings_over_years(self):
+        # "Obveze | Imovina" a bit off center over "2025. 2024. 2025. 2024."
+        t = self.results['fewrules']['tables'][4]
+        self.assertEqual(t['cells'][0], [{'text': 'Obveze', 'rs': 1, 'cs': 2}, {'text': 'Imovina', 'rs': 1, 'cs': 2}])
+        self.assertEqual(t['cells'][1], ['2025.', '2024.', '2025.', '2024.'])
+        self.assertEqual(t['rows'], 5)
+
     def test_chart_is_not_a_table(self):
         self.assertEqual(self.results['chart']['tables'], [])
 

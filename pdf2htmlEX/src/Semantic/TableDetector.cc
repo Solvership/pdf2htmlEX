@@ -1432,7 +1432,7 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
     for (const auto & r : merge_rules(free_rules, true))
         if (r.x1 - r.x0 >= 30)
             H.push_back(r);
-    if (H.size() < 2)
+    if (H.empty())
         return tables;
 
     // same extent: within 4pt or 5% of the width
@@ -1477,7 +1477,18 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                 }
             }
     }
-    groups.erase(std::remove_if(groups.begin(), groups.end(), [](const vector<int> & g) { return g.size() < 2; }), groups.end());
+    if (getenv("P2H_SEM_DEBUG"))
+        for (const auto & g : groups)
+        {
+            fprintf(stderr, "hrules: rule group:");
+            for (int k : g)
+                fprintf(stderr, " [%.1f-%.1f @%.1f k%d]", H[k].x0, H[k].x1, H[k].y0, (int)H[k].kind);
+            fprintf(stderr, "\n");
+        }
+    // a single rule only makes a table with the rows below it (see the fallback),
+    // after the tables of the groups: a total rule inside a statement must not
+    // take the rows of its table
+    std::stable_partition(groups.begin(), groups.end(), [](const vector<int> & g) { return g.size() >= 2; });
 
     /*
      * Chart grid lines: most rules have a tick label (a short text) on their
@@ -1595,12 +1606,13 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
     for (const auto & g : groups)
     {
         size_t i = 0;
-        while (i + 1 < g.size())
+        while (i < g.size())
         {
             // a first band with a paragraph in it (between two tables sharing their
             // rules' extent): the table starts at the next rule, its headings are
             // found above it
             double top_y = H[g[i]].y0;
+            if (i + 1 < g.size())
             {
                 Box first(H[g[i]].x0 - 2, H[g[i]].y0, H[g[i]].x1 + 2, H[g[i + 1]].y0);
                 if (band_has_prose(first.y0, first.y1, first))
@@ -1681,7 +1693,150 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                 best_lines = lines;
                 ++j;
             }
-            if (best_j == 0)
+            /*
+             * Too few rows between the rules to find the columns: a rule under
+             * the column headings with the rows below it, or a rule pair around
+             * a single row (a total, "Krediti i zajmovi | 3.717 | 57.417 ...")
+             * whose other rows are above the rule. The columns come from the
+             * rows with numbers between the rules and directly below them; the
+             * label column, the headings and the rows above are added as usual.
+             */
+            double block_bottom = 0; // end of the rows taken below the last rule
+            bool found = best_j != 0;
+            if (!found)
+            {
+                const Rule & r0 = H[g[i]];
+                double rx0 = r0.x0 - 2, rx1 = r0.x1 + 2;
+                bool pair = i + 1 < g.size();
+                double band_end = pair ? H[g[i + 1]].y0 : top_y;
+                double limit = 1e30;
+                for (const auto & r : H)
+                    if (r.y0 > band_end + 1 && r.x0 < rx1 && r.x1 > rx0)
+                        limit = min(limit, r.y0);
+                vector<int> ids;
+                for (const auto & ch : in.chars)
+                    if (usable_char(ch) && !taken[ch.index] && ch.box.cy() > top_y && ch.box.cy() < limit && ch.box.cx() < rx1)
+                        ids.push_back(ch.index);
+                auto all = build_visual_lines(in.chars, ids);
+                double em = body_em(all);
+                // the rows: those between the rules, then going down without a gap,
+                // a bigger font or a line of text running into the rules' extent
+                vector<VLine> block;
+                vector<bool> data;
+                vector<Box> whole; // the whole lines (with the labels left of the rules)
+                int below = 0;
+                double prev = band_end;
+                for (const auto & l : all)
+                {
+                    bool in_band = l.box.cy() < band_end;
+                    if (!in_band)
+                    {
+                        if (getenv("P2H_SEM_DEBUG"))
+                            fprintf(stderr, "  fallback below: %.1f-%.1f x %.1f-%.1f em %.2f (block em %.2f, prev %.1f) '%s'\n", l.box.y0, l.box.y1, l.box.x0, l.box.x1, l.em, em, prev, chars_text(in.chars, l.chars).c_str());
+                        if (l.box.y0 - prev > 2.5 * em || l.em > 1.08 * em || l.em < 0.8 * em)
+                            break;
+                        prev = l.box.y1;
+                    }
+                    // the part within the rules' extent
+                    VLine v;
+                    v.em = l.em;
+                    v.dir = l.dir;
+                    for (int ci : l.chars)
+                        if (in.chars[ci].box.cx() >= rx0)
+                        {
+                            v.chars.push_back(ci);
+                            v.box.expand(in.chars[ci].box);
+                        }
+                    int numbers = 0;
+                    bool prose = false;
+                    if (!v.chars.empty())
+                        for (const auto & sg : split_segments(in.chars, v, SEG_GAP_EM))
+                        {
+                            string t = chars_text(in.chars, sg.chars);
+                            if (is_numeric_text(t) && !is_year_text(t))
+                                ++numbers;
+                            // running text: a sentence, or text continuing from the left of
+                            // the rules across a good part of them
+                            int words = 1 + (int)std::count(t.begin(), t.end(), ' ');
+                            if (words >= 7 || sg.box.w() > 0.6 * (rx1 - rx0)
+                                    || (words >= 4 && l.box.x0 < rx0 - em && sg.box.x0 < rx0 + em && sg.box.w() > 0.3 * (rx1 - rx0)))
+                                prose = true;
+                        }
+                    if (prose && !in_band)
+                    {
+                        if (getenv("P2H_SEM_DEBUG"))
+                            fprintf(stderr, "  fallback: prose\n");
+                        break;
+                    }
+                    block.push_back(v);
+                    data.push_back(numbers > 0);
+                    whole.push_back(l.box);
+                    if (!in_band)
+                        ++below;
+                }
+                // trailing lines without numbers are not part of it
+                while (!block.empty() && !data.back() && whole.back().cy() > band_end)
+                {
+                    block.pop_back();
+                    data.pop_back();
+                    whole.pop_back();
+                    --below;
+                }
+                // columns: the pieces of the rows with numbers
+                vector<std::pair<double, double>> iv;
+                int data_lines = 0, wide = 0;
+                bool wordy = false;
+                for (size_t k = 0; k < block.size(); ++k)
+                {
+                    if (!data[k] || block[k].chars.empty())
+                        continue;
+                    ++data_lines;
+                    auto segs = split_segments(in.chars, block[k], SEG_GAP_EM);
+                    if (segs.size() >= 2)
+                        ++wide;
+                    for (const auto & sg : segs)
+                    {
+                        iv.emplace_back(sg.box.x0, sg.box.x1);
+                        string t = chars_text(in.chars, sg.chars);
+                        if (std::count(t.begin(), t.end(), ' ') >= 6)
+                            wordy = true;
+                    }
+                }
+                std::sort(iv.begin(), iv.end());
+                vector<std::pair<double, double>> cover;
+                for (const auto & pr : iv)
+                {
+                    if (!cover.empty() && pr.first <= cover.back().second + 0.4 * em)
+                        cover.back().second = max(cover.back().second, pr.second);
+                    else
+                        cover.push_back(pr);
+                }
+                if (getenv("P2H_SEM_DEBUG"))
+                    fprintf(stderr, "hrules fallback: rules %zu%s, %zu lines (%d below), %d with numbers, %d wide, %zu columns%s\n",
+                            i, pair ? "+1" : "", block.size(), below, data_lines, wide, cover.size(), wordy ? ", wordy" : "");
+                if (cover.size() >= 2 && wide >= 1 && !wordy && data_lines >= (pair ? 1 : 2)
+                        && (pair || below > 0))
+                {
+                    found = true;
+                    best_j = pair ? i + 1 : i;
+                    best_bounds.clear();
+                    best_bounds.push_back(min(rx0, cover.front().first));
+                    for (size_t c = 1; c < cover.size(); ++c)
+                        best_bounds.push_back((cover[c - 1].second + cover[c].first) / 2);
+                    best_bounds.push_back(max(rx1, cover.back().second));
+                    best_segs.clear();
+                    best_lines.clear();
+                    for (const auto & v : block)
+                        if (!v.chars.empty())
+                        {
+                            best_lines.push_back(v);
+                            best_segs.push_back(split_segments(in.chars, v, SEG_GAP_EM));
+                        }
+                    if (below > 0)
+                        block_bottom = whole.back().y1 + 1;
+                }
+            }
+            if (!found)
             {
                 ++i;
                 continue;
@@ -1691,6 +1846,8 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
             vector<double> rule_ys;
             for (size_t k = i; k <= best_j; ++k)
                 rule_ys.push_back(k == i ? top_y : H[g[k]].y0);
+            if (block_bottom > rule_ys.back())
+                rule_ys.push_back(block_bottom);
 
             bool label_extended = false;
             /*
@@ -2219,8 +2376,10 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                  * values (a year over "Brand | Goodwill"): it spans the group. The
                  * smallest group whose center matches is taken.
                  */
-                auto group_of = [&](const LSeg & v, int & bc, int & bs) {
-                    for (int c = first_value_col; c < ncols; ++c)
+                // over_values: also a heading over the values of a column; loose: anywhere
+                // over the group, the center in its middle half (headings over years)
+                auto group_of = [&](const LSeg & v, int & bc, int & bs, bool over_values = false, bool loose = false) {
+                    for (int c = first_value_col; c < ncols && !over_values; ++c)
                         if (cl[c] <= cr[c] && v.box.cx() >= cl[c] - 0.2 * v.em && v.box.cx() <= cr[c] + 0.2 * v.em)
                             return false; // over the values of a column
                     bc = -1;
@@ -2232,9 +2391,25 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                             int b = a + sz - 1;
                             if (cl[a] > cr[a] || cl[b] > cr[b])
                                 continue;
+                            // groups do not cross the groups of the headings (a unit centered
+                            // under "2025. | 2024." spans both, not the middle two columns)
+                            bool crosses = false;
+                            for (const LSeg * h : heads)
+                            {
+                                if (h == &v || h->colspan < 2 || h->box.cy() > v.box.cy() - 0.3 * v.em)
+                                    continue; // only the headings above
+                                int s0 = h->col, s1 = h->col + h->colspan - 1;
+                                if ((a < s0 && b >= s0 && b < s1) || (a > s0 && a <= s1 && b > s1))
+                                    crosses = true;
+                            }
+                            if (crosses)
+                                continue;
                             double gl = min(cl[a], hl[a]), gr = max(cr[b], hr[b]);
                             double d = abs(v.box.cx() - (gl + gr) / 2);
-                            if (d <= max(0.75 * v.em, 0.1 * (gr - gl)) && d < best)
+                            bool ok = d <= max(0.75 * v.em, 0.1 * (gr - gl));
+                            if (loose)
+                                ok = v.box.x0 >= gl - 0.5 * v.em && v.box.x1 <= gr + 0.5 * v.em && d <= 0.25 * (gr - gl);
+                            if (ok && d < best)
                             {
                                 best = d;
                                 bc = a;
@@ -2245,6 +2420,7 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                         fprintf(stderr, "  group span '%s' x %.1f-%.1f: col %d span %d\n", chars_text(in.chars, v.chars).c_str(), v.box.x0, v.box.x1, bc, bs);
                     return bc >= 0;
                 };
+                vector<vector<LSeg *>> head_lines; // value headings per line, top to bottom
                 for (size_t a0 = 0; a0 < heads.size(); )
                 {
                     size_t a1 = a0;
@@ -2333,8 +2509,75 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                             hl[v->col] = min(hl[v->col], v->box.x0);
                             hr[v->col] = max(hr[v->col], v->box.x1);
                         }
+                    head_lines.push_back(vals);
                     a0 = a1;
                 }
+                /*
+                 * A line of years with fewer headings than a line below it (years
+                 * over "Number | %"), none of them spanning: a year aligned with the
+                 * values of one column may still be centered over a group, whose
+                 * edges are given by all the headings below. The same for headings
+                 * over a line of years. (Not other texts: the first line of a
+                 * wrapped heading has fewer pieces too.)
+                 */
+                for (size_t q = 0; q + 1 < head_lines.size(); ++q)
+                {
+                    auto & vals = head_lines[q];
+                    size_t more = 0;
+                    for (size_t q2 = q + 1; q2 < head_lines.size(); ++q2)
+                        more = max(more, head_lines[q2].size());
+                    auto years = [&](const vector<LSeg *> & vs) {
+                        return std::all_of(vs.begin(), vs.end(), [&](const LSeg * v) { return is_year_text(chars_text(in.chars, v->chars)); });
+                    };
+                    // years, or group headings over a line of years ("Obveze | Imovina"
+                    // over "2025. 2024. 2025. 2024.")
+                    const auto & next = head_lines[q + 1];
+                    bool over_years = !next.empty() && next.size() >= 2 * vals.size() && years(next);
+                    if (vals.empty() || vals.size() >= more
+                            || std::any_of(vals.begin(), vals.end(), [](const LSeg * v) { return v->colspan >= 2; })
+                            || !(years(vals) || over_years))
+                        continue;
+                    vector<std::pair<int, int>> spans;
+                    for (LSeg * v : vals)
+                    {
+                        int bc, bs;
+                        if (!group_of(*v, bc, bs, true, over_years && !years(vals)))
+                            break;
+                        if (!spans.empty() && bc < spans.back().first + spans.back().second)
+                            break;
+                        spans.emplace_back(bc, bs);
+                    }
+                    if (spans.size() == vals.size())
+                        for (size_t k = 0; k < vals.size(); ++k)
+                        {
+                            vals[k]->col = spans[k].first;
+                            vals[k]->colspan = spans[k].second;
+                        }
+                }
+                // a span cutting the groups of the headings above (a unit under
+                // "2025. | 2024." over the middle columns) is widened to them
+                auto widen = [&](LSeg * v) {
+                    for (bool grown = v->colspan >= 2; grown; )
+                    {
+                        grown = false;
+                        int a = v->col, b = v->col + v->colspan - 1;
+                        for (const LSeg * h : heads)
+                        {
+                            if (h == v || h->colspan < 2 || h->box.cy() > v->box.cy() - 0.3 * v->em)
+                                continue;
+                            int s0 = h->col, s1 = h->col + h->colspan - 1;
+                            if ((a < s0 && b >= s0 && b < s1) || (a > s0 && a <= s1 && b > s1))
+                            {
+                                v->col = min(a, s0);
+                                v->colspan = max(b, s1) - v->col + 1;
+                                grown = true;
+                                break;
+                            }
+                        }
+                    }
+                };
+                for (LSeg * v : heads)
+                    widen(v);
 
                 /*
                  * Lines without numbers between the headings and the first numbers
@@ -2433,7 +2676,7 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                         taken[ci] = true;
                 tables.push_back(std::move(t));
             }
-            i = best_j;
+            i = max(best_j, i + 1);
         }
     }
     split_repeated_headings(in, tables);
