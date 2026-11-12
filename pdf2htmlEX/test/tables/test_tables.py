@@ -173,6 +173,23 @@ class TableTests(unittest.TestCase):
             self.assertEqual(t['rows'], 5)
             self.assertEqual(t['cells'][1], [{'text': '(u tisućama eura)', 'rs': 1, 'cs': 2}])
 
+    def test_statement_rows_below_last_rule(self):
+        # "attributable to" / "earnings per share" rows without rules belong to the
+        # statement, the sentence after it does not
+        t = self.results['statement']['tables'][0]
+        self.assertEqual(t['rows'], 12)
+        self.assertEqual(t['cells'][6], ['Dobit za raspodjelu:'])
+        self.assertEqual(t['cells'][-1], ['Razrijeđena', '0,57', '0,47'])
+        self.assertTrue(self.results['statement']['paragraphs'][0].startswith('Računovodstvene politike'))
+
+    def test_statement_short_total_rules(self):
+        # values in the last columns only, a long label, short total rules under them
+        t = self.results['statement']['tables'][1]
+        self.assertEqual(t['rows'], 7)
+        self.assertEqual(t['cells'][5], [{'text': 'Središnji administrativni i ostali troškovi', 'rs': 1, 'cs': 3},
+                                         '(6.211)', '(6.261)'])
+        self.assertEqual(t['cells'][6], ['Dobit prije poreza', '13.936', '10.516'])
+
     def test_chart_is_not_a_table(self):
         self.assertEqual(self.results['chart']['tables'], [])
 

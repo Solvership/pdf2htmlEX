@@ -1793,6 +1793,39 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
              */
             int header_band = -1; // index of the band holding the header row
             std::set<int> heading_chars; // first chars of the header segments
+            /*
+             * Lines of text above or below the rules: with a label column the
+             * label and the numbers are matched by their baselines (a heading
+             * next to the column headings must not become one line with them).
+             */
+            auto outer_lines = [&](const vector<int> & ids) {
+                if (best_bounds.size() < 3)
+                    return build_visual_lines(in.chars, ids);
+                vector<VLine> res;
+                vector<int> ids_l, ids_v;
+                for (int ci : ids)
+                    (in.chars[ci].box.cx() < best_bounds[1] ? ids_l : ids_v).push_back(ci);
+                auto ll = build_visual_lines(in.chars, ids_l), lv = build_visual_lines(in.chars, ids_v);
+                vector<bool> used(lv.size(), false);
+                for (auto & l : ll)
+                {
+                    for (size_t k = 0; k < lv.size(); ++k)
+                        if (!used[k] && abs(lv[k].box.cy() - l.box.cy()) <= 0.3 * max(l.em, 1.0))
+                        {
+                            used[k] = true;
+                            l.chars.insert(l.chars.end(), lv[k].chars.begin(), lv[k].chars.end());
+                            l.box.expand(lv[k].box);
+                            l.em = max(l.em, lv[k].em);
+                            break;
+                        }
+                    res.push_back(l);
+                }
+                for (size_t k = 0; k < lv.size(); ++k)
+                    if (!used[k])
+                        res.push_back(lv[k]);
+                std::stable_sort(res.begin(), res.end(), [](const VLine & a, const VLine & b) { return a.box.cy() < b.box.cy(); });
+                return res;
+            };
             {
                 double top = rule_ys.front();
                 double tl = best_bounds.front(), tr = best_bounds.back();
@@ -1820,36 +1853,7 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                     }
                     return label && number;
                 };
-                vector<VLine> up;
-                if (best_bounds.size() >= 3)
-                {
-                    // label and numbers are matched by their baselines: a heading above the
-                    // column headings must not become one line with them
-                    vector<int> ids_l, ids_v;
-                    for (int ci : ids)
-                        (in.chars[ci].box.cx() < best_bounds[1] ? ids_l : ids_v).push_back(ci);
-                    auto ll = build_visual_lines(in.chars, ids_l), lv = build_visual_lines(in.chars, ids_v);
-                    vector<bool> used(lv.size(), false);
-                    for (auto & l : ll)
-                    {
-                        for (size_t k = 0; k < lv.size(); ++k)
-                            if (!used[k] && abs(lv[k].box.cy() - l.box.cy()) <= 0.3 * max(l.em, 1.0))
-                            {
-                                used[k] = true;
-                                l.chars.insert(l.chars.end(), lv[k].chars.begin(), lv[k].chars.end());
-                                l.box.expand(lv[k].box);
-                                l.em = max(l.em, lv[k].em);
-                                break;
-                            }
-                        up.push_back(l);
-                    }
-                    for (size_t k = 0; k < lv.size(); ++k)
-                        if (!used[k])
-                            up.push_back(lv[k]);
-                    std::stable_sort(up.begin(), up.end(), [](const VLine & a, const VLine & b) { return a.box.cy() < b.box.cy(); });
-                }
-                else
-                    up = build_visual_lines(in.chars, ids);
+                vector<VLine> up = outer_lines(ids);
                 vector<std::pair<VLine, vector<Segment>>> accepted; // bottom to top
                 double cur = top;
                 for (int k = (int)up.size() - 1; k >= 0; --k)
@@ -1915,6 +1919,122 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                         best_segs.push_back(accepted[k].second);
                     }
                     rule_ys.insert(rule_ys.begin(), new_ys.begin(), new_ys.end());
+                }
+            }
+
+            /*
+             * Rows below the last rule: financial statements often end with rows
+             * without rules ("attributable to: / owners / non-controlling
+             * interests", "earnings per share"). Lines are taken going down while
+             * they are data rows - a label and numbers under the numbers of the
+             * table - or a few label lines (a subheading) followed by one. Not
+             * past another rule, a big gap, a bigger font or text outside the
+             * table. When the rules of the group go on below (the band after the
+             * last one was refused) the lines below belong to the next table.
+             */
+            if (best_bounds.size() >= 3 && best_j + 1 == g.size())
+            {
+                double bottom = rule_ys.back();
+                double tl = best_bounds.front(), tr = best_bounds.back(), lab = best_bounds[1];
+                double em = body_em(best_lines);
+                double limit = bottom + 40 * em;
+                bool limit_rule = false;
+                for (const auto & r : H)
+                    if (r.y0 > bottom + 1 && r.x0 < tr && r.x1 > tl && r.y0 < limit
+                            // a shorter rule under some of the value columns is a total of
+                            // this table, not another table
+                            && !(r.x0 >= lab - 2 && r.x1 <= tr + 2 && r.x1 - r.x0 < tr - lab - 4))
+                    {
+                        limit = r.y0;
+                        limit_rule = true;
+                    }
+                // horizontal extent of the numbers of each value column
+                int nc = (int)best_bounds.size() - 1;
+                vector<double> vl(nc, 1e30), vr(nc, -1e30);
+                for (const auto & ls : best_segs)
+                    for (const auto & sg : ls)
+                    {
+                        if (sg.box.cx() < lab || !is_numeric_text(chars_text(in.chars, sg.chars)))
+                            continue;
+                        int c = locate(best_bounds, sg.box.cx());
+                        if (c >= 1 && c < nc)
+                        {
+                            vl[c] = min(vl[c], sg.box.x0);
+                            vr[c] = max(vr[c], sg.box.x1);
+                        }
+                    }
+                double first_num = 1e30; // left edge of the numbers
+                for (int c = 1; c < nc; ++c)
+                    if (vl[c] <= vr[c])
+                        first_num = min(first_num, vl[c]);
+                vector<int> ids;
+                for (const auto & ch : in.chars)
+                    if (usable_char(ch) && !taken[ch.index] && ch.box.cy() > bottom && ch.box.cy() < limit
+                            && ch.box.cx() > tl - 3 * em && ch.box.cx() < tr + 3 * em)
+                        ids.push_back(ch.index);
+                vector<std::pair<VLine, vector<Segment>>> accepted, pending; // pending: label lines
+                double cur = bottom;
+                for (const auto & l : outer_lines(ids))
+                {
+                    if (l.em > 1.08 * em || l.em < 0.8 * em)
+                        break;
+                    if (l.box.x0 < tl - 0.25 * em || l.box.x1 > tr + 0.5 * em)
+                        break;
+                    if (l.box.y0 - cur > 3.0 * em)
+                        break;
+                    auto segs = split_segments(in.chars, l, SEG_GAP_EM);
+                    bool label = false, number = false, other = false;
+                    bool long_label = false; // running over the value columns
+                    for (const auto & sg : segs)
+                    {
+                        // a label, possibly running past the label column, not into the numbers
+                        if (sg.box.x1 <= lab + 0.5 * em || (sg.box.x0 < lab && sg.box.x1 < first_num - 0.5 * em))
+                        {
+                            label = true;
+                            continue;
+                        }
+                        // a long label over empty value columns (only on a line with numbers)
+                        if (sg.box.x0 < lab && !is_numeric_text(chars_text(in.chars, sg.chars)))
+                        {
+                            label = long_label = true;
+                            continue;
+                        }
+                        int c = locate(best_bounds, sg.box.cx());
+                        if (c >= 1 && c < nc && vl[c] <= vr[c] && sg.box.x0 < vr[c] + 0.5 * em && sg.box.x1 > vl[c] - 0.5 * em
+                                && is_numeric_text(chars_text(in.chars, sg.chars)))
+                            number = true;
+                        else
+                            other = true;
+                    }
+                    if (getenv("P2H_SEM_DEBUG"))
+                        fprintf(stderr, "down: line %.1f-%.1f x %.1f-%.1f label %d number %d other %d '%s'\n", l.box.y0, l.box.y1, l.box.x0, l.box.x1, label, number, other, chars_text(in.chars, l.chars).c_str());
+                    if (other || !label || (long_label && !number))
+                        break;
+                    if (!number)
+                    {
+                        // a subheading: a few lines, kept only when data rows follow
+                        if (pending.size() >= 3)
+                            break;
+                        pending.emplace_back(l, std::move(segs));
+                    }
+                    else
+                    {
+                        accepted.insert(accepted.end(), pending.begin(), pending.end());
+                        pending.clear();
+                        accepted.emplace_back(l, std::move(segs));
+                    }
+                    cur = l.box.y1;
+                }
+                // rows ending right above another rule are the first rows of the table
+                // of that rule (found going up from it)
+                if (!accepted.empty() && limit_rule && pending.empty()
+                        && limit - accepted.back().first.box.y1 < 2.0 * em)
+                    accepted.clear();
+                if (!accepted.empty())
+                {
+                    for (auto & a : accepted)
+                        best_segs.push_back(std::move(a.second));
+                    rule_ys.push_back(accepted.back().first.box.y1 + 1);
                 }
             }
 

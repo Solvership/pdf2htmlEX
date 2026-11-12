@@ -66,6 +66,11 @@ mjerenjem (`scripts/fidelity_metric.py`, raster PDF-a naspram rendera HTML-a):
      stupac, a **brojevi bilješki** („Bilješka”) zaseban stupac;
    * zaglavlje i prvi redovi **iznad prve linije** (kad linije odvajaju samo zbrojeve), uključujući
      naslove stupaca u više redaka i naslove skupina preko više stupaca („Prihodi segmenta”);
+   * redovi **ispod zadnje linije** („Dobit za raspodjelu: / Vlasnicima matice …”, „Zarada po
+     dionici”): uzimaju se redom dok su to redovi s nazivom i brojevima ispod brojeva tablice ili
+     podnaslovi iza kojih takav red slijedi; zaustavlja ih veći razmak, veći font, tekst izvan
+     tablice ili linija druge tablice. Kraće linije zbrojeva ispod samo nekih stupaca pripadaju
+     istoj tablici, a dugi naziv retka smije prijeći preko praznih stupaca;
    * red s jedinicom („(u tisućama eura)”) i redovi zbrojeva bez naziva su zasebni redovi;
    * dvije tablice iste širine razdvojene rečenicom („… kako slijedi:”) ili naslovom ostaju
      dvije tablice;

@@ -169,3 +169,13 @@ Druga runda (preostala ograničenja):
 
 Rezultat: 90 tablica (60 hrules, 30 ruled, 6 nastavaka). Promijenjene su samo stranice 125, 136,
 153 i 157 (provjereno usporedbom svih tablica prije/poslije). Test `notes` pokriva sva tri slučaja.
+
+Treća runda:
+
+* hrules: proširenje **ispod zadnje linije** (zrcalno proširenju iznad prve). Redovi s nazivom i
+  brojevima ispod brojčanih stupaca te podnaslovi (≤ 3 retka) iza kojih slijedi takav red. Ne
+  kad grupa linija ide dalje (pojas iza zadnje odbijen = sljedeća tablica), ne ako preuzeti
+  redovi završavaju neposredno iznad tuđe linije (to su prvi redovi te tablice). Kraća linija
+  unutar vrijednosnih stupaca (zbroj pod zadnja dva stupca) ne prekida. Str. 102 (20 → 29 redova)
+  i 129 (10 → 14 redova); ostalo nepromijenjeno. Test `statement`.
+* prikaz tablica: prelaskom miša oznaka s tablicom, redom, stupcem i tekstom ćelije.

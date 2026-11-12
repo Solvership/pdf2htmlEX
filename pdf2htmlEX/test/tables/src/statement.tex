@@ -1,0 +1,46 @@
+% Financial statements whose last rows have no rules:
+%  - "attributable to" / "earnings per share" rows below the last rule, with
+%    label-only subheadings, followed by a paragraph that is not part of it,
+%  - rows with values in the last columns only, a long label running past the
+%    label column and short total rules under these columns.
+\documentclass[a4paper,10pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{array}
+\usepackage[margin=2.5cm]{geometry}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\begin{document}
+{\small
+\begin{tabular}{@{}p{7cm}rr@{}}
+(u tisućama eura) & 2025. & 2024. \\ \cline{2-3}
+Prihod od prodaje & 396.664 & 350.555 \\
+Ostali prihodi & 4.754 & 2.498 \\
+Materijalni troškovi & (260.420) & (232.144) \\ \cline{2-3}
+\textbf{Dobit iz poslovanja} & \textbf{18.090} & \textbf{14.739} \\ \cline{2-3}
+\textbf{Neto dobit za godinu} & \textbf{11.280} & \textbf{9.232} \\ \cline{2-3}
+\\
+\multicolumn{3}{@{}l}{\textbf{Dobit za raspodjelu:}} \\
+Vlasnicima matice & 11.315 & 9.285 \\
+Vlasnicima nekontrolirajućih udjela & (35) & (53) \\[1em]
+\multicolumn{3}{@{}l}{\textbf{Zarada po dionici (u eurima):}} \\
+Osnovna & 0,57 & 0,47 \\
+Razrijeđena & 0,57 & 0,47 \\
+\end{tabular}}
+
+\vspace{3em}
+Računovodstvene politike i bilješke čine sastavni dio ovih financijskih izvještaja.
+
+\vspace{3em}
+{\small
+\begin{tabular}{@{}p{3.6cm}rrrr@{}}
+(u tisućama eura) & 2025. & 2024. & 2025. & 2024. \\ \cline{2-5}
+Auto program & 295.835 & 257.401 & 14.690 & 16.480 \\
+Ekologija & 32.587 & 30.077 & 5.094 & 849 \\ \cline{2-5}
+ & 328.422 & 287.478 & 19.784 & 17.329 \\ \cline{2-5}
+Financijski prihodi & & & 608 & 258 \\
+\multicolumn{3}{@{}l}{Središnji administrativni i ostali troškovi} & (6.211) & (6.261) \\ \cline{4-5}
+\textbf{Dobit prije poreza} & & & \textbf{13.936} & \textbf{10.516} \\ \cline{4-5}
+\end{tabular}}
+\end{document}

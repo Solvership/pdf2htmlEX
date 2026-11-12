@@ -1,0 +1,125 @@
+{
+ "tables": [
+  {
+   "page": 1,
+   "source": "hrules",
+   "rows": 12,
+   "cols": 3,
+   "cells": [
+    [
+     "(u tisućama eura)",
+     "2025.",
+     "2024."
+    ],
+    [
+     "Prihod od prodaje",
+     "396.664",
+     "350.555"
+    ],
+    [
+     "Ostali prihodi",
+     "4.754",
+     "2.498"
+    ],
+    [
+     "Materijalni troškovi",
+     "(260.420)",
+     "(232.144)"
+    ],
+    [
+     "Dobit iz poslovanja",
+     "18.090",
+     "14.739"
+    ],
+    [
+     "Neto dobit za godinu",
+     "11.280",
+     "9.232"
+    ],
+    [
+     "Dobit za raspodjelu:"
+    ],
+    [
+     "Vlasnicima matice",
+     "11.315",
+     "9.285"
+    ],
+    [
+     "Vlasnicima nekontrolirajućih udjela",
+     "(35)",
+     "(53)"
+    ],
+    [
+     "Zarada po dionici (u eurima):"
+    ],
+    [
+     "Osnovna",
+     "0,57",
+     "0,47"
+    ],
+    [
+     "Razrijeđena",
+     "0,57",
+     "0,47"
+    ]
+   ]
+  },
+  {
+   "page": 1,
+   "source": "hrules",
+   "rows": 7,
+   "cols": 5,
+   "cells": [
+    [
+     "(u tisućama eura)",
+     "2025.",
+     "2024.",
+     "2025.",
+     "2024."
+    ],
+    [
+     "Auto program",
+     "295.835",
+     "257.401",
+     "14.690",
+     "16.480"
+    ],
+    [
+     "Ekologija",
+     "32.587",
+     "30.077",
+     "5.094",
+     "849"
+    ],
+    [
+     "328.422",
+     "287.478",
+     "19.784",
+     "17.329"
+    ],
+    [
+     "Financijski prihodi",
+     "608",
+     "258"
+    ],
+    [
+     {
+      "text": "Središnji administrativni i ostali troškovi",
+      "rs": 1,
+      "cs": 3
+     },
+     "(6.211)",
+     "(6.261)"
+    ],
+    [
+     "Dobit prije poreza",
+     "13.936",
+     "10.516"
+    ]
+   ]
+  }
+ ],
+ "paragraphs": [
+  "Računovodstvene politike i bilješke čine sastavni dio ovih ﬁnancijskih izvještaja."
+ ]
+}
