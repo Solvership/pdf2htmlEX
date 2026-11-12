@@ -196,6 +196,8 @@ bool is_numeric_text(const string & t)
     {
         if (c >= '0' && c <= '9')
             digit = true;
+        else if (c == '-' && digit)
+            return false; // a range ("1-5"), not a number
         else if (!strchr(".,()%-+/ ", c))
             return false;
     }
@@ -302,7 +304,7 @@ int split_band_rows(vector<LSeg> & segs)
                 continue;
             int r = 0;
             for (size_t k = 1; k < starts.size(); ++k)
-                if (s.box.y0 + 0.3 * s.em >= starts[k])
+                if (s.box.y0 + 0.5 * s.em >= starts[k])
                     r = (int)k;
             for (const auto & o : segs)
             {
@@ -310,9 +312,9 @@ int split_band_rows(vector<LSeg> & segs)
                     continue;
                 int ro = 0;
                 for (size_t k = 1; k < starts.size(); ++k)
-                    if (o.box.y0 + 0.3 * o.em >= starts[k])
+                    if (o.box.y0 + 0.5 * o.em >= starts[k])
                         ro = (int)k;
-                if (ro == r && s.box.y0 > starts[r] + 0.3 * s.em)
+                if (ro == r && s.box.y0 > starts[r] + 0.5 * s.em)
                 {
                     extra.push_back(s.box.y0);
                     break;
@@ -323,7 +325,7 @@ int split_band_rows(vector<LSeg> & segs)
         {
             bool dup = false;
             for (double st : starts)
-                if (abs(st - y) < 0.3 * segs[0].em)
+                if (abs(st - y) < 0.5 * segs[0].em)
                     dup = true;
             if (!dup)
                 starts.push_back(y);
@@ -362,7 +364,7 @@ int split_band_rows(vector<LSeg> & segs)
     {
         int r = 0;
         for (size_t k = 1; k < starts.size(); ++k)
-            if (s.box.y0 + 0.3 * s.em >= starts[k])
+            if (s.box.y0 + 0.5 * s.em >= starts[k])
                 r = (int)k;
         s.row = r;
     }
@@ -559,9 +561,18 @@ vector<double> find_columns(const PageInput & in, const vector<VLine> & lines, c
     }
     if (cover.size() == 2)
     {
-        // two wide text columns: a two column page layout, not a table
+        // two wide text columns: a two column page layout, not a table (columns of
+        // numbers are fine)
         double w0 = cover[0].second - cover[0].first, w1 = cover[1].second - cover[1].first;
-        if (w0 > 0.4 * width && w1 > 0.4 * width)
+        int segs = 0, numeric = 0;
+        for (size_t i = 0; i < lines.size(); ++i)
+            for (const auto & sg : line_segs[i])
+            {
+                ++segs;
+                if (is_numeric_text(chars_text(in.chars, sg.chars)))
+                    ++numeric;
+            }
+        if (w0 > 0.4 * width && w1 > 0.4 * width && numeric < 0.5 * segs)
             return {};
     }
 
@@ -916,6 +927,31 @@ vector<Table> detect_ruled_tables(const PageInput & in, vector<bool> & taken, ve
         }
 
         /*
+         * A frame drawn around a part of a bigger table (or around a block of
+         * values): a cell holds several numbers on separate lines. Numbers do
+         * not wrap, so the lattice is not the row structure.
+         */
+        if (nr > 3)
+        {
+            bool stacked = false;
+            for (const auto & c : final_cells)
+            {
+                auto vls = build_visual_lines(in.chars, c.chars);
+                int numeric_lines = 0;
+                for (const auto & vl : vls)
+                    if (is_numeric_text(chars_text(in.chars, vl.chars)))
+                        ++numeric_lines;
+                if (numeric_lines >= 2)
+                {
+                    stacked = true;
+                    break;
+                }
+            }
+            if (stacked)
+                continue;
+        }
+
+        /*
          * Charts: the bars (filled boxes) of a bar chart form a lattice too.
          * Their grid is mostly empty, with whole columns or rows without
          * text (the gaps between the bars).
@@ -1113,6 +1149,13 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                 ids.push_back(ch.index);
         for (const auto & l : build_visual_lines(in.chars, ids))
         {
+            // an introducing sentence ("... as follows:")
+            {
+                auto segs = split_segments(in.chars, l, SEG_GAP_EM);
+                string t = chars_text(in.chars, l.chars);
+                if (segs.size() == 1 && !t.empty() && t.back() == ':' && std::count(t.begin(), t.end(), ' ') >= 5)
+                    return true;
+            }
             if (!(l.box.x0 < region.x0 && min(l.box.x1, region.x1) - region.x0 > 0.5 * region.w()))
                 continue;
             // running text (justified: wide word gaps) has no column gap
@@ -1138,12 +1181,35 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
             // a first band with a paragraph in it (between two tables sharing their
             // rules' extent): the table starts at the next rule, its headings are
             // found above it
+            double top_y = H[g[i]].y0;
             {
                 Box first(H[g[i]].x0 - 2, H[g[i]].y0, H[g[i]].x1 + 2, H[g[i + 1]].y0);
                 if (band_has_prose(first.y0, first.y1, first))
                 {
                     ++i;
                     continue;
+                }
+                // empty space at its top when the rule closes the table above: the table
+                // starts after it
+                bool closes_above = false;
+                for (const auto & ch : in.chars)
+                    if (taken[ch.index] && ch.box.valid() && ch.box.cy() < first.y0 && ch.box.cy() > first.y0 - 20
+                            && ch.box.cx() > first.x0 && ch.box.cx() < first.x1)
+                    {
+                        closes_above = true;
+                        break;
+                    }
+                vector<int> ids;
+                for (const auto & ch : in.chars)
+                    if (usable_char(ch) && !taken[ch.index] && ch.box.cx() <= first.x1 && ch.box.cy() > first.y0 && ch.box.cy() < first.y1)
+                        ids.push_back(ch.index);
+                auto fl = build_visual_lines(in.chars, ids);
+                double prev = first.y0;
+                for (const auto & l : fl)
+                {
+                    if (closes_above && l.box.y0 - prev > 2.5 * max(l.em, 4.0))
+                        top_y = l.box.y0 - 1;
+                    prev = max(prev, l.box.y1);
                 }
             }
             // extend the region band by band while the bands look tabular
@@ -1154,7 +1220,7 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
             vector<VLine> best_lines;
             while (j < g.size())
             {
-                Box region(H[g[i]].x0 - 2, H[g[i]].y0, H[g[i]].x1 + 2, H[g[j]].y0);
+                Box region(H[g[i]].x0 - 2, top_y, H[g[i]].x1 + 2, H[g[j]].y0);
                 if (getenv("P2H_SEM_DEBUG"))
                     fprintf(stderr, "hrules: group rule %zu..%zu region %.1f,%.1f-%.1f,%.1f best_j %zu\n", i, j, region.x0, region.y0, region.x1, region.y1, best_j);
                 if (best_j != 0 && (band_has_gap(H[g[j - 1]].y0, H[g[j]].y0, region.x1, best_lines)
@@ -1170,8 +1236,15 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                 vector<vector<Segment>> segs;
                 vector<double> bands;
                 for (size_t k = i; k <= j; ++k)
-                    bands.push_back(H[g[k]].y0);
+                    bands.push_back(k == i ? top_y : H[g[k]].y0);
                 auto bounds = find_columns(in, lines, region, segs, bands);
+                if (getenv("P2H_SEM_DEBUG"))
+                {
+                    fprintf(stderr, "  find_columns:");
+                    for (double b : bounds)
+                        fprintf(stderr, " %.1f", b);
+                    fprintf(stderr, "\n");
+                }
                 if (bounds.empty())
                 {
                     // the first band(s) (e.g. only the header) may be too small to find columns:
@@ -1198,7 +1271,7 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
             // rows: each band between consecutive rules is split by the anchor rule
             vector<double> rule_ys;
             for (size_t k = i; k <= best_j; ++k)
-                rule_ys.push_back(H[g[k]].y0);
+                rule_ys.push_back(k == i ? top_y : H[g[k]].y0);
 
             bool label_extended = false;
             /*
@@ -1225,8 +1298,10 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                 for (size_t k = 0; k < llines.size(); ++k)
                 {
                     const auto & l = llines[k];
+                    // aligned with a number of the table, apart from it (not the end of a
+                    // long text running into the numbers)
                     for (const auto & b : tseg_boxes)
-                        if (abs(b.cy() - l.box.cy()) <= 0.35 * max(l.em, 1.0))
+                        if (abs(b.cy() - l.box.cy()) <= 0.35 * max(l.em, 1.0) && b.x0 - l.box.x1 > SEG_GAP_EM * max(l.em, 1.0))
                         {
                             aligned_idx.push_back((int)k);
                             break;
@@ -1236,7 +1311,14 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                 for (const auto & ls : best_segs)
                     if (!ls.empty())
                         ++table_lines;
-                if (aligned_idx.size() >= 2 && aligned_idx.size() >= 0.4 * table_lines)
+                // lines that are not aligned between the aligned ones: section headings,
+                // wrapped labels - a few; many of them are a text column next to the table
+                int not_aligned = 0;
+                if (!aligned_idx.empty())
+                    not_aligned = (aligned_idx.back() - aligned_idx.front() + 1) - (int)aligned_idx.size();
+                if (!aligned_idx.empty() && aligned_idx.size() >= 0.25 * table_lines
+                        && (aligned_idx.size() >= 2 || table_lines <= 6)
+                        && not_aligned <= max(3, (int)aligned_idx.size()))
                 {
                     double em = body_em(llines);
                     // all label lines inside the table (section headings, labels whose
@@ -1329,7 +1411,7 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                     return label && number;
                 };
                 vector<VLine> up;
-                if (label_extended)
+                if (best_bounds.size() >= 3)
                 {
                     // label and numbers are matched by their baselines: a heading above the
                     // column headings must not become one line with them
@@ -1365,11 +1447,14 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                     const VLine & l = up[k];
                     if (getenv("P2H_SEM_DEBUG"))
                         fprintf(stderr, "up: line %.1f-%.1f x %.1f-%.1f em %.2f (table em %.2f, tl %.1f tr %.1f cur %.1f) '%s'\n", l.box.y0, l.box.y1, l.box.x0, l.box.x1, l.em, em, tl, tr, cur, chars_text(in.chars, l.chars).c_str());
-                    if (cur - l.box.y1 > 2.0 * em || l.em > 1.08 * em)
+                    if (l.em > 1.08 * em)
                         break;
                     if (l.box.x0 < tl - 0.25 * em || l.box.x1 > tr + 0.5 * em)
                         break;
                     auto segs = split_segments(in.chars, l, SEG_GAP_EM);
+                    // column headings may be set apart by an empty line
+                    if (cur - l.box.y1 > (segs.size() >= 2 ? 3.0 : 2.0) * em)
+                        break;
                     // headings may be wider than their numbers: only text running across
                     // the table (a caption, a paragraph) does not fit
                     bool fits = !segs.empty();
@@ -1526,7 +1611,45 @@ vector<Table> detect_hrule_tables(const PageInput & in, const vector<Rule> & fre
                 }
             }
 
+            if (getenv("P2H_SEM_DEBUG"))
+            {
+                fprintf(stderr, "hrules table bounds:");
+                for (double b : best_bounds)
+                    fprintf(stderr, " %.1f", b);
+                fprintf(stderr, "\n");
+            }
             auto lsegs = make_lsegs(in, best_segs, best_bounds);
+
+            /*
+             * A first band (between the top rule and the next one) without any
+             * number holds the column headings: one row, headings assigned like
+             * the ones above the first rule.
+             */
+            if (header_band < 0 && rule_ys.size() > 2)
+            {
+                bool any = false, numbers = false;
+                for (const auto & ls : lsegs)
+                    if (ls.box.cy() >= rule_ys[0] && ls.box.cy() < rule_ys[1])
+                    {
+                        any = true;
+                        if (ls.numeric && !(label_extended && ls.col == 0))
+                        {
+                            // years are headings, not data
+                            string t = chars_text(in.chars, ls.chars);
+                            bool year = t.size() >= 4 && t.size() <= 5 && (t.compare(0, 2, "19") == 0 || t.compare(0, 2, "20") == 0)
+                                        && t.find_first_not_of("0123456789.") == string::npos;
+                            if (!year)
+                                numbers = true;
+                        }
+                    }
+                if (any && !numbers)
+                {
+                    header_band = 0;
+                    for (const auto & ls : lsegs)
+                        if (ls.box.cy() >= rule_ys[0] && ls.box.cy() < rule_ys[1] && !ls.chars.empty())
+                            heading_chars.insert(ls.chars.front());
+                }
+            }
 
             /*
              * A heading belongs to the column whose values it is aligned with
