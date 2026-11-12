@@ -150,6 +150,6 @@ Godišnje izvješće (InDesign, netagirano, 170 stranica). Ispravljeno u detekci
   bez naziva, naslovi odjeljaka (veliko slovo), prekid tablice na odlomku/razmaku;
 * rotirani tekst (smjer pisanja po znaku), indeksi/eksponenti.
 
-Rezultat: 85 tablica, ručno uspoređeno s `pdftotext -layout` (skripta za usporedbu nije u repou
+Rezultat: 87 tablica (57 hrules, 30 ruled, 6 nastavaka preko stranica), ručno uspoređeno s `pdftotext -layout` (skripta za usporedbu nije u repou
 jer je dokument privatan). Novi testovi: `financial`, `chart`. Bez semantike i dalje bajt-identično
 masteru (22 PDF-a uključujući ovaj dokument), sa semantikom pikselski identično (14 stranica).

@@ -123,7 +123,7 @@ Retci istog odlomka spajaju se razmakom umjesto prijeloma retka.
 
 ## Ograničenja
 
-Isprobano na stvarnom dokumentu (godišnje izvješće, InDesign, 170 stranica, 85 tablica:
+Isprobano na stvarnom dokumentu (godišnje izvješće, InDesign, 170 stranica, 87 tablica:
 mreže linija, zebra tablice, financijski izvještaji i bilješke, tablice preko stranica,
 rotirana zaglavlja, grafikoni). Preostala odstupanja:
 
